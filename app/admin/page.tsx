@@ -68,26 +68,26 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen" style={{ backgroundColor: '#e0f2fe' }}>
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-lg">
+      <header className="border-b border-slate-300 bg-white/50 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-xl font-bold text-white flex items-center gap-2">
+            <Link href="/" className="text-xl font-bold text-slate-800 flex items-center gap-2">
               🔍 SAO Auditor
             </Link>
-            <span className="px-2 py-1 bg-indigo-600 text-white text-xs font-semibold rounded">
+            <span className="px-2 py-1 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] text-white text-xs font-semibold rounded">
               ADMIN
             </span>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <div className="text-white font-medium">{user.name}</div>
-              <div className="text-slate-400 text-xs">{user.role.replace('_', ' ').toUpperCase()}</div>
+              <div className="text-slate-800 font-medium">{user.name}</div>
+              <div className="text-slate-600 text-xs">{user.role.replace('_', ' ').toUpperCase()}</div>
             </div>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition text-sm"
+              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition text-sm border border-red-200"
             >
               Logout
             </button>
@@ -98,8 +98,8 @@ export default function AdminDashboardPage() {
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user.name}!</h1>
-          <p className="text-slate-400">Here's what's happening with SAO Auditor today.</p>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome back, {user.name}!</h1>
+          <p className="text-slate-700">Here's what's happening with SAO Auditor today.</p>
         </div>
 
         {/* Stats Grid */}
@@ -125,45 +125,45 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Pro Feature - Multi-URL Scan */}
-        <div className="bg-gradient-to-br from-emerald-900/30 to-teal-900/30 backdrop-blur-lg rounded-2xl p-6 border border-emerald-500/30 mb-8">
+        <div className="rounded-2xl p-6 border border-slate-300 mb-8 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 🚀 Pro Multi-URL Scan
-                <span className="px-2 py-0.5 bg-emerald-600 text-white text-xs rounded">PRO</span>
+                <span className="px-2 py-0.5 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] text-white text-xs rounded">PRO</span>
               </h2>
-              <p className="text-slate-400 text-sm mt-1">Analyze 30 URLs + compare with 4 competitors</p>
+              <p className="text-slate-700 text-sm mt-1">Analyze 30 URLs + compare with 4 competitors</p>
             </div>
             <Link
               href="/internal"
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition flex items-center gap-2"
+              className="px-6 py-3 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white font-semibold rounded-xl transition flex items-center gap-2 shadow-md"
             >
               🔍 Run Pro Scan
             </Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-emerald-400">30</div>
-              <div className="text-slate-400">URLs per scan</div>
+            <div className="bg-white/60 rounded-lg p-3 text-center border border-slate-300">
+              <div className="text-2xl font-bold text-slate-800">30</div>
+              <div className="text-slate-700">URLs per scan</div>
             </div>
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-emerald-400">4</div>
-              <div className="text-slate-400">Competitors</div>
+            <div className="bg-white/60 rounded-lg p-3 text-center border border-slate-300">
+              <div className="text-2xl font-bold text-slate-800">4</div>
+              <div className="text-slate-700">Competitors</div>
             </div>
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-emerald-400">10</div>
-              <div className="text-slate-400">URLs/competitor</div>
+            <div className="bg-white/60 rounded-lg p-3 text-center border border-slate-300">
+              <div className="text-2xl font-bold text-slate-800">10</div>
+              <div className="text-slate-700">URLs/competitor</div>
             </div>
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-emerald-400">5</div>
-              <div className="text-slate-400">Score cards</div>
+            <div className="bg-white/60 rounded-lg p-3 text-center border border-slate-300">
+              <div className="text-2xl font-bold text-slate-800">5</div>
+              <div className="text-slate-700">Score cards</div>
             </div>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10 mb-8">
-          <h2 className="text-xl font-bold text-white mb-4">Quick Actions</h2>
+        <div className="rounded-2xl p-6 border border-slate-300 mb-8 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+          <h2 className="text-xl font-bold text-slate-800 mb-4">Quick Actions</h2>
           <div className="grid md:grid-cols-4 gap-4">
             <ActionButton icon="🚀" label="Pro Scan (Multi-URL)" href="/internal" highlight />
             <ActionButton icon="🔍" label="Free Scan (Single URL)" href="/" />
@@ -175,8 +175,8 @@ export default function AdminDashboardPage() {
         {/* Admin Tools */}
         <div className="grid md:grid-cols-2 gap-6">
           {/* System Status */}
-          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
-            <h2 className="text-xl font-bold text-white mb-4">System Status</h2>
+          <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <h2 className="text-xl font-bold text-slate-800 mb-4">System Status</h2>
             <div className="space-y-3">
               <StatusItem label="API Status" status="operational" />
               <StatusItem label="Database" status="testing" />
@@ -188,8 +188,8 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
-            <h2 className="text-xl font-bold text-white mb-4">Recent Activity</h2>
+          <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Recent Activity</h2>
             <div className="space-y-3">
               <ActivityItem
                 action="Admin login"
@@ -211,12 +211,12 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Environment Info */}
-        <div className="mt-8 bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
-          <h2 className="text-xl font-bold text-white mb-4">Environment Configuration</h2>
+        <div className="mt-8 rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+          <h2 className="text-xl font-bold text-slate-800 mb-4">Environment Configuration</h2>
           <div className="grid md:grid-cols-2 gap-4 text-sm">
-            <div className="flex justify-between p-3 bg-white/5 rounded-lg">
-              <span className="text-slate-400">Mode</span>
-              <span className="text-yellow-400 font-medium">Testing (No Database)</span>
+            <div className="flex justify-between p-3 bg-white/80 rounded-lg border border-slate-300">
+              <span className="text-slate-700">Mode</span>
+              <span className="text-yellow-600 font-medium">Testing (No Database)</span>
             </div>
             <div className="flex justify-between p-3 bg-white/5 rounded-lg">
               <span className="text-slate-400">PageSpeed API</span>
@@ -241,19 +241,13 @@ export default function AdminDashboardPage() {
 }
 
 function StatCard({ title, value, icon, color }: { title: string; value: string; icon: string; color: string }) {
-  const colorClasses = {
-    blue: 'from-blue-600/20 to-blue-600/5 border-blue-500/20',
-    green: 'from-green-600/20 to-green-600/5 border-green-500/20',
-    yellow: 'from-yellow-600/20 to-yellow-600/5 border-yellow-500/20',
-  }[color] || 'from-blue-600/20 to-blue-600/5 border-blue-500/20';
-
   return (
-    <div className={`bg-gradient-to-br ${colorClasses} backdrop-blur-lg rounded-2xl p-6 border`}>
+    <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
       <div className="flex items-center justify-between mb-4">
         <span className="text-3xl">{icon}</span>
       </div>
-      <div className="text-3xl font-bold text-white mb-1">{value}</div>
-      <div className="text-slate-400 text-sm">{title}</div>
+      <div className="text-3xl font-bold text-slate-800 mb-1">{value}</div>
+      <div className="text-slate-700 text-sm">{title}</div>
     </div>
   );
 }
@@ -262,14 +256,14 @@ function ActionButton({ icon, label, href, highlight }: { icon: string; label: s
   return (
     <Link
       href={href}
-      className={`flex items-center gap-3 p-4 rounded-xl transition border ${
+      className={`flex items-center gap-3 p-4 rounded-xl transition border shadow-sm ${
         highlight 
-          ? 'bg-emerald-600/20 hover:bg-emerald-600/30 border-emerald-500/30' 
-          : 'bg-white/5 hover:bg-white/10 border-white/10'
+          ? 'bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] border-[#38bdf8] text-white' 
+          : 'bg-white/80 hover:bg-white border-slate-300 text-slate-800'
       }`}
     >
       <span className="text-2xl">{icon}</span>
-      <span className="text-white font-medium">{label}</span>
+      <span className="font-medium">{label}</span>
     </Link>
   );
 }
@@ -283,11 +277,11 @@ function StatusItem({ label, status }: { label: string; status: string }) {
   }[status] || { color: 'bg-slate-500', text: status };
 
   return (
-    <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-      <span className="text-slate-300">{label}</span>
+    <div className="flex items-center justify-between p-3 bg-white/80 rounded-lg border border-slate-300">
+      <span className="text-slate-800">{label}</span>
       <div className="flex items-center gap-2">
         <div className={`w-2 h-2 rounded-full ${statusConfig.color}`}></div>
-        <span className="text-sm text-slate-400">{statusConfig.text}</span>
+        <span className="text-sm text-slate-700">{statusConfig.text}</span>
       </div>
     </div>
   );
@@ -295,12 +289,12 @@ function StatusItem({ label, status }: { label: string; status: string }) {
 
 function ActivityItem({ action, user, time }: { action: string; user: string; time: string }) {
   return (
-    <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+    <div className="flex items-center justify-between p-3 bg-white/80 rounded-lg border border-slate-300">
       <div>
-        <div className="text-white text-sm">{action}</div>
-        <div className="text-slate-500 text-xs">{user}</div>
+        <div className="text-slate-800 text-sm">{action}</div>
+        <div className="text-slate-600 text-xs">{user}</div>
       </div>
-      <div className="text-slate-500 text-xs">{time}</div>
+      <div className="text-slate-600 text-xs">{time}</div>
     </div>
   );
 }

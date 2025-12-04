@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import LoadingPopup from '../components/LoadingPopup';
 
 interface DomainResult {
   name: string;
@@ -14,12 +15,15 @@ interface DomainResult {
     websiteTechnical: number;
     keywordVisibility: number;
     aiTrust: number;
+    breakdown?: any;
   };
   urlResults: {
     url: string;
     score: number;
+    scores?: any;
   }[];
-  recommendations?: string[];
+  recommendations?: any[];
+  warnings?: string[];
 }
 
 // Pillar definitions - Direct 100-point system
@@ -56,6 +60,140 @@ const PILLAR_INFO = {
   }
 };
 
+// Metric definitions/explanations from SKILL.md
+const METRIC_DEFINITIONS: Record<string, { title: string; description: string; tips: string }> = {
+  // Content Structure
+  schema: {
+    title: 'Schema Markup',
+    description: 'Structured data (JSON-LD) that helps search engines and AI understand your content.',
+    tips: 'Add FAQ, HowTo, Article, or Product schema to earn maximum points. Use Google\'s Structured Data Testing Tool to validate.',
+  },
+  tableLists: {
+    title: 'Tables & Lists',
+    description: 'Structured content formats that AI can easily parse and extract information from.',
+    tips: 'Include comparison tables, feature lists, and bullet points. AI assistants often pull data directly from tables.',
+  },
+  headings: {
+    title: 'Heading Structure',
+    description: 'Proper HTML heading hierarchy (H1 → H2 → H3) that creates a clear content outline.',
+    tips: 'Use exactly one H1 per page. Follow with H2s for main sections and H3s for subsections. Never skip heading levels.',
+  },
+  multimodal: {
+    title: 'Multimodal Content',
+    description: 'Different content types (images, videos, infographics) that enhance understanding.',
+    tips: 'Add images with descriptive alt text, embed relevant videos, and include infographics. This signals comprehensive content to AI.',
+  },
+  directAnswer: {
+    title: 'Direct Answer (TL;DR)',
+    description: 'Clear, concise answers at the beginning of content that AI can easily extract.',
+    tips: 'Start your content with a brief summary or direct answer to the main question. This increases chances of being featured in AI responses.',
+  },
+  contentGap: {
+    title: 'Content Depth',
+    description: 'Comprehensive coverage of a topic compared to competitors.',
+    tips: 'Cover all aspects of your topic thoroughly. Use tools like "People Also Ask" to find related questions to answer.',
+  },
+  imageAlt: {
+    title: 'Image ALT Tags',
+    description: 'Descriptive text for images that helps accessibility and AI understanding.',
+    tips: 'Add descriptive alt text to all images. This helps AI understand visual content and improves accessibility.',
+  },
+  // Website Technical
+  lcp: {
+    title: 'LCP (Largest Contentful Paint)',
+    description: 'Time it takes for the largest visible element to load.',
+    tips: 'Target: < 2.5 seconds for full score. Optimize images, use CDN, preload critical resources.',
+  },
+  inp: {
+    title: 'INP (Interaction to Next Paint)',
+    description: 'Time from user interaction to browser response.',
+    tips: 'Target: ≤ 200ms. Minimize JavaScript, break up long tasks, defer non-critical scripts.',
+  },
+  cls: {
+    title: 'CLS (Cumulative Layout Shift)',
+    description: 'Measures visual stability - how much elements shift during page load.',
+    tips: 'Target: < 0.1 for full score. Set explicit dimensions for images/videos, avoid inserting content above existing content.',
+  },
+  mobile: {
+    title: 'Mobile Performance',
+    description: 'How well your site performs on mobile devices.',
+    tips: 'Use responsive design, optimize touch targets (48px minimum), test on real devices.',
+  },
+  ssl: {
+    title: 'SSL/HTTPS Security',
+    description: 'Secure connection that encrypts data between users and your website.',
+    tips: 'HTTPS required for full score. Install SSL certificate (free via Let\'s Encrypt).',
+  },
+  brokenLinks: {
+    title: 'Link Health',
+    description: 'Quality of internal and external links - no broken links.',
+    tips: 'Regularly audit links. Fix 404 errors and minimize redirect chains.',
+  },
+  llmsTxt: {
+    title: 'LLMs.txt',
+    description: 'AI-friendly file that helps LLM crawlers understand your site.',
+    tips: 'Create /llms.txt or /llms-full.txt at your domain root. This helps AI systems discover and understand your content.',
+  },
+  sitemap: {
+    title: 'Sitemap.xml',
+    description: 'XML sitemap with all required elements for proper indexing.',
+    tips: 'Must include: urlset, loc, lastmod, changefreq, priority. Submit to Google Search Console.',
+  },
+  // Brand Ranking
+  brandSearch: {
+    title: 'Branded Search Rank',
+    description: 'Your ranking for your brand name keyword.',
+    tips: 'Rank #1 for your brand name. Build brand awareness through PR and social.',
+  },
+  brandSentiment: {
+    title: 'Brand Sentiment',
+    description: 'Public sentiment about your brand from community sources.',
+    tips: 'Monitor Pantip, Reddit, reviews. Community sentiment overrides PR.',
+  },
+  // Keyword Visibility
+  keywords: {
+    title: 'Organic Keywords Count',
+    description: 'Number of keywords your site ranks for in search results.',
+    tips: 'Create content targeting relevant keywords. Focus on long-tail keywords.',
+  },
+  positions: {
+    title: 'Average Position',
+    description: 'Average ranking position for your keywords.',
+    tips: 'Aim for positions 1-10. Improve content quality and relevance.',
+  },
+  intentMatch: {
+    title: 'Search Intent Match',
+    description: 'How well your content matches user search intent.',
+    tips: 'Align content with: Informational, Commercial, Transactional, or Navigational intent.',
+  },
+  // AI Trust
+  backlinks: {
+    title: 'Backlink Quality',
+    description: 'Links from other websites pointing to yours.',
+    tips: 'Focus on earning links from authoritative, relevant sites.',
+  },
+  referringDomains: {
+    title: 'Referring Domains',
+    description: 'Number of unique websites linking to you.',
+    tips: 'Aim for links from many different domains.',
+  },
+  sentiment: {
+    title: 'Content Sentiment',
+    description: 'How professional and positive your content tone is.',
+    tips: 'Use professional language. Avoid aggressive sales tactics.',
+  },
+  eeat: {
+    title: 'E-E-A-T Signals',
+    description: 'Experience, Expertise, Authoritativeness, Trustworthiness.',
+    tips: 'Show author, bio, credentials, citations, and dates.',
+  },
+  local: {
+    title: 'Local/GEO Signals',
+    description: 'Signals for local search and location-based AI results.',
+    tips: 'Add LocalBusiness OR Organization schema, Google Maps, NAP.',
+  },
+};
+
 export default function InternalDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -63,6 +201,7 @@ export default function InternalDashboard() {
   const [analyzing, setAnalyzing] = useState(false);
   const [expandedDomain, setExpandedDomain] = useState<number | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(true);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const [mainDomainName, setMainDomainName] = useState('');
   const [mainUrls, setMainUrls] = useState('');
@@ -75,8 +214,71 @@ export default function InternalDashboard() {
 
   const [results, setResults] = useState<DomainResult[] | null>(null);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('Starting analysis...');
 
   useEffect(() => { checkAuth(); }, []);
+
+  // Simulate progress during scan based on URL completion
+  useEffect(() => {
+    if (!analyzing) {
+      setProgress(0);
+      return;
+    }
+
+    // Calculate total URLs to analyze
+    const mainUrlList = parseUrls(mainUrls).slice(0, 30);
+    const competitorDomains = competitors
+      .filter(c => c.name.trim() && c.urls.trim())
+      .map(c => parseUrls(c.urls).slice(0, 10))
+      .slice(0, 4);
+    const competitorUrls = competitorDomains.reduce((sum, urls) => sum + urls.length, 0);
+    const totalUrls = mainUrlList.length + competitorUrls;
+
+    if (totalUrls === 0) {
+      setProgress(1);
+      setStatusMessage('Starting analysis...');
+      return;
+    }
+
+    // Start at 1%
+    setProgress(1);
+    setStatusMessage('Starting analysis...');
+
+    // Calculate progress based on URL completion
+    // 1% = starting, 50% = half URLs done, 100% = all URLs done
+    // Progress formula: 1% + (completedUrls / totalUrls) * 99%
+    let completedUrls = 0;
+    
+    const updateProgress = () => {
+      if (completedUrls < totalUrls) {
+        // Calculate progress: 1% start + (completed/total) * 99%
+        const progressPercent = 1 + Math.floor((completedUrls / totalUrls) * 99);
+        setProgress(Math.min(progressPercent, 100));
+        
+        if (completedUrls === 0) {
+          setStatusMessage('Starting analysis...');
+        } else if (completedUrls < totalUrls) {
+          setStatusMessage(`Analyzing URL ${completedUrls + 1} of ${totalUrls}...`);
+        } else {
+          setStatusMessage('Audit Complete! Meow!');
+        }
+        
+        completedUrls++;
+        
+        // Update every 500ms to simulate URL analysis
+        if (completedUrls <= totalUrls) {
+          setTimeout(updateProgress, 500);
+        }
+      } else {
+        setProgress(100);
+        setStatusMessage('Audit Complete! Meow!');
+      }
+    };
+
+    // Start progress updates after a short delay
+    setTimeout(updateProgress, 500);
+  }, [analyzing, mainUrls, competitors]);
 
   const checkAuth = async () => {
     try {
@@ -130,23 +332,33 @@ export default function InternalDashboard() {
           name: mainDomainName || 'Your Domain',
           urls: mainUrlList,
           averageScore: data.scores,
-          urlResults: data.urlResults || [{ url: data.url, score: data.score }],
-          recommendations: data.recommendations?.map((r: any) => r.message) || generateRecommendations(data.scores)
+          urlResults: data.urlResults || [{ url: data.url, score: data.score, scores: data.scores }],
+          recommendations: data.recommendations || [],
+          warnings: data.warnings || []
         },
         ...(data.competitors || []).map((comp: any) => ({
           name: comp.name,
           urls: comp.urls,
           averageScore: comp.averageScore,
-          urlResults: comp.urlResults,
-          recommendations: generateRecommendations(comp.averageScore)
+          urlResults: comp.urlResults || [],
+          recommendations: comp.recommendations || [],
+          warnings: comp.warnings || []
         }))
       ];
 
       setResults(formattedResults.slice(0, 5));
       setExpandedDomain(0);
+      // Set progress to 100% only when results are ready
+      setProgress(100);
+      setStatusMessage('Audit Complete! Meow!');
+      // Small delay to show 100% before closing popup
+      setTimeout(() => {
+        setAnalyzing(false);
+      }, 1000);
     } catch (err: any) {
       setError(err.message);
-    } finally {
+      setProgress(0);
+      setStatusMessage('Analysis failed');
       setAnalyzing(false);
     }
   };
@@ -271,7 +483,7 @@ export default function InternalDashboard() {
     ${d.recommendations?.length ? `
     <div class="recs">
       <h4>🎯 Optimization Priorities</h4>
-      <ul>${d.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
+      <ul>${d.recommendations.map(r => `<li>${typeof r === 'string' ? r : (r.title || r.message || r.description || '')}</li>`).join('')}</ul>
     </div>` : ''}
     <div class="insight-box">
       <h5>💡 Key Insights for Internal Team</h5>
@@ -328,7 +540,7 @@ export default function InternalDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#e0f2fe' }}>
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#10b981]"></div>
       </div>
     );
@@ -337,30 +549,33 @@ export default function InternalDashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#0f172a]">
+    <div className="min-h-screen" style={{ backgroundColor: '#e0f2fe' }}>
+      {/* Loading Popup */}
+      {analyzing && <LoadingPopup progress={progress} statusMessage={statusMessage} />}
+      
       {/* Decorative curved line like mycommuters */}
       <div className="absolute top-0 right-0 w-1/2 h-80 overflow-hidden pointer-events-none">
         <svg viewBox="0 0 500 300" className="w-full h-full">
-          <path d="M0,100 Q150,100 200,50 T400,50 L500,50 L500,0 L0,0 Z" fill="none" stroke="#10b981" strokeWidth="4" />
+          <path d="M0,100 Q150,100 200,50 T400,50 L500,50 L500,0 L0,0 Z" fill="none" stroke="#38bdf8" strokeWidth="4" />
         </svg>
       </div>
 
       {/* Header */}
-      <header className="relative border-b border-[#1e293b]">
+      <header className="relative border-b border-slate-300 bg-white/50 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#10b981] rounded-xl flex items-center justify-center">
-              <span className="text-xl text-[#0f172a] font-bold">S</span>
+            <div className="w-10 h-10 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] rounded-xl flex items-center justify-center">
+              <span className="text-xl text-white font-bold">S</span>
             </div>
             <div>
-              <div className="text-xl font-bold text-white">SAO <span className="text-[#10b981]">Auditor</span></div>
-              <div className="text-xs text-slate-400">Search & AI Optimization</div>
+              <div className="text-xl font-bold text-slate-800">SAO <span className="text-slate-600">Auditor</span></div>
+              <div className="text-xs text-slate-600">Search & AI Optimization</div>
             </div>
           </Link>
           <div className="flex items-center gap-4">
-            <span className="px-3 py-1 bg-[#10b981] text-[#0f172a] text-xs rounded-full font-bold">PRO</span>
-            <span className="text-slate-400 text-sm hidden md:inline">{user.email}</span>
-            <Link href="/admin" className="px-4 py-2 bg-[#10b981] hover:bg-[#059669] text-[#0f172a] rounded-full text-sm font-semibold transition">
+            <span className="px-3 py-1 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] text-white text-xs rounded-full font-bold">PRO</span>
+            <span className="text-slate-600 text-sm hidden md:inline">{user.email}</span>
+            <Link href="/admin" className="px-4 py-2 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white rounded-full text-sm font-semibold transition shadow-md">
               Admin
             </Link>
           </div>
@@ -370,55 +585,55 @@ export default function InternalDashboard() {
       <main className="relative max-w-7xl mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">
-            Pro <span className="text-[#10b981]">Multi-URL</span> Analysis
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-800 mb-3">
+            Pro <span className="bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] bg-clip-text text-transparent">Multi-URL</span> Analysis
           </h1>
-          <p className="text-slate-400 text-lg">
-            Analyze up to <span className="text-[#10b981] font-semibold">30 URLs</span> and compare with <span className="text-[#10b981] font-semibold">4 competitors</span>
+          <p className="text-slate-700 text-lg">
+            Analyze up to <span className="text-slate-800 font-semibold">30 URLs</span> and compare with <span className="text-slate-800 font-semibold">4 competitors</span>
           </p>
         </div>
 
         {/* Input Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Main Domain */}
-          <div className="bg-[#1e293b] rounded-2xl p-6 border border-[#10b981]/30">
-            <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <span className="w-8 h-8 bg-[#10b981] rounded-lg flex items-center justify-center text-[#0f172a] font-bold">🏠</span>
+          <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <span className="w-8 h-8 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] rounded-lg flex items-center justify-center text-white font-bold">🏠</span>
               Your Domain
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-slate-400 mb-2">Domain Name</label>
+                <label className="block text-sm text-slate-700 mb-2">Domain Name</label>
                 <input
                   type="text"
                   value={mainDomainName}
                   onChange={(e) => setMainDomainName(e.target.value)}
                   placeholder="e.g., My Company"
-                  className="w-full px-4 py-3 bg-[#0f172a] border border-[#334155] rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#10b981] focus:border-[#10b981] focus:outline-none transition"
+                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:border-[#38bdf8] focus:outline-none transition shadow-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-2">URLs (one per line, max 30)</label>
+                <label className="block text-sm text-slate-700 mb-2">URLs (one per line, max 30)</label>
                 <textarea
                   value={mainUrls}
                   onChange={(e) => setMainUrls(e.target.value)}
                   placeholder="https://example.com/page1&#10;https://example.com/page2&#10;https://example.com/page3"
                   rows={10}
-                  className="w-full px-4 py-3 bg-[#0f172a] border border-[#334155] rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-[#10b981] focus:outline-none font-mono text-sm transition"
+                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:outline-none font-mono text-sm transition shadow-sm"
                 />
-                <p className="text-sm text-[#10b981] mt-2 font-medium">{parseUrls(mainUrls).length} / 30 URLs</p>
+                <p className="text-sm text-slate-700 mt-2 font-medium">{parseUrls(mainUrls).length} / 30 URLs</p>
               </div>
             </div>
           </div>
 
           {/* Competitors */}
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-white mb-2">🏢 Competitors (up to 4)</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-2">🏢 Competitors (up to 4)</h2>
             {competitors.map((comp, index) => (
-              <div key={index} className="bg-[#1e293b] rounded-xl p-4 border border-[#334155] hover:border-[#10b981]/30 transition">
+              <div key={index} className="rounded-xl p-4 border border-slate-300 hover:border-[#38bdf8] transition shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="w-6 h-6 bg-slate-700 rounded flex items-center justify-center text-xs text-slate-300">{index + 1}</span>
-                  <span className="text-sm font-medium text-slate-300">Competitor {index + 1}</span>
+                  <span className="w-6 h-6 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] rounded flex items-center justify-center text-xs text-white">{index + 1}</span>
+                  <span className="text-sm font-medium text-slate-800">Competitor {index + 1}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <input
@@ -426,17 +641,17 @@ export default function InternalDashboard() {
                     value={comp.name}
                     onChange={(e) => updateCompetitor(index, 'name', e.target.value)}
                     placeholder="Name"
-                    className="px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-500 text-sm focus:ring-2 focus:ring-[#10b981] focus:outline-none"
+                    className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 text-sm focus:ring-2 focus:ring-[#38bdf8] focus:outline-none shadow-sm"
                   />
                   <textarea
                     value={comp.urls}
                     onChange={(e) => updateCompetitor(index, 'urls', e.target.value)}
                     placeholder="URLs (one per line, max 10)"
                     rows={2}
-                    className="md:col-span-2 px-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg text-white placeholder-slate-500 text-sm font-mono focus:ring-2 focus:ring-[#10b981] focus:outline-none"
+                    className="md:col-span-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 text-sm font-mono focus:ring-2 focus:ring-[#38bdf8] focus:outline-none shadow-sm"
                   />
                 </div>
-                <p className="text-xs text-slate-500 mt-2">{parseUrls(comp.urls).length} / 10 URLs</p>
+                <p className="text-xs text-slate-700 mt-2">{parseUrls(comp.urls).length} / 10 URLs</p>
               </div>
             ))}
           </div>
@@ -447,11 +662,11 @@ export default function InternalDashboard() {
           <button
             onClick={handleAnalyze}
             disabled={analyzing || parseUrls(mainUrls).length === 0}
-            className="px-12 py-4 bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 text-[#0f172a] font-bold rounded-full transition text-lg shadow-lg shadow-[#10b981]/20 flex items-center gap-3 mx-auto"
+            className="px-12 py-4 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] disabled:opacity-50 text-white font-bold rounded-full transition text-lg shadow-lg shadow-[#38bdf8]/30 flex items-center gap-3 mx-auto"
           >
             {analyzing ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-[#0f172a]"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
                 Analyzing {parseUrls(mainUrls).length} URLs...
               </>
             ) : (
@@ -461,7 +676,7 @@ export default function InternalDashboard() {
         </div>
 
         {error && (
-          <div className="mb-8 p-4 bg-red-900/30 border border-red-500/50 rounded-xl text-red-300 text-center">
+          <div className="mb-8 p-4 bg-red-50 border border-red-300 rounded-xl text-red-700 text-center">
             {error}
           </div>
         )}
@@ -471,17 +686,17 @@ export default function InternalDashboard() {
           <div className="space-y-8">
             {/* Actions */}
             <div className="flex flex-wrap justify-between items-center gap-4">
-              <h2 className="text-2xl font-bold text-white">📊 Analysis Results</h2>
+              <h2 className="text-2xl font-bold text-slate-800">📊 Analysis Results</h2>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowRecommendations(!showRecommendations)}
-                  className="px-4 py-2 bg-[#1e293b] hover:bg-[#334155] text-white rounded-lg text-sm border border-[#334155] transition"
+                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-sm border border-slate-300 transition shadow-sm"
                 >
                   {showRecommendations ? '📋 Hide Tips' : '📋 Show Tips'}
                 </button>
                 <button
                   onClick={handleExportPDF}
-                  className="px-4 py-2 bg-[#10b981] hover:bg-[#059669] text-[#0f172a] rounded-lg text-sm font-semibold flex items-center gap-2 transition"
+                  className="px-4 py-2 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition shadow-md"
                 >
                   📥 Export PDF
                 </button>
@@ -494,16 +709,17 @@ export default function InternalDashboard() {
                 <div
                   key={index}
                   onClick={() => setExpandedDomain(expandedDomain === index ? null : index)}
-                  className={`bg-white rounded-2xl p-5 cursor-pointer transition-all hover:scale-[1.02] ${expandedDomain === index ? 'ring-2 ring-[#ec4899]' : ''
-                    } ${index === 0 ? 'ring-2 ring-[#10b981]' : ''}`}
+                  className={`rounded-2xl p-5 cursor-pointer transition-all hover:scale-[1.02] shadow-sm ${expandedDomain === index ? 'ring-2 ring-[#38bdf8]' : ''
+                    } ${index === 0 ? 'ring-2 ring-[#38bdf8]' : ''}`}
+                  style={{ backgroundColor: '#79B4EE' }}
                 >
                   {/* Header */}
                   <div className="flex items-center gap-2 mb-4">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold ${index === 0 ? 'bg-[#10b981]' : 'bg-slate-500'
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold ${index === 0 ? 'bg-gradient-to-r from-[#38bdf8] to-[#60a5fa]' : 'bg-slate-500'
                       }`}>
                       {index === 0 ? '🏠' : '🏢'}
                     </div>
-                    <span className="font-semibold text-slate-700 text-sm truncate">{domain.name}</span>
+                    <span className="font-semibold text-slate-800 text-sm truncate">{domain.name}</span>
                   </div>
 
                   {/* Circular Score */}
@@ -536,64 +752,327 @@ export default function InternalDashboard() {
                     <PillarBar label="AI Trust" value={domain.averageScore.aiTrust} max={23} color="#3b82f6" />
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-gray-100 text-center">
-                    <span className="text-xs text-slate-400">{domain.urlResults.length} URLs • Click for details</span>
+                  <div className="mt-4 pt-3 border-t border-slate-300 text-center">
+                    <span className="text-xs text-slate-700">{domain.urlResults.length} URLs • Click for details</span>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Expanded Details */}
-            {expandedDomain !== null && results[expandedDomain] && (
-              <div className="bg-[#1e293b] rounded-2xl p-6 border border-[#334155]">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white">
-                    {expandedDomain === 0 ? '🏠' : '🏢'} {results[expandedDomain].name} — Detailed Analysis
-                  </h3>
-                  <button onClick={() => setExpandedDomain(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
-                </div>
+            {expandedDomain !== null && results[expandedDomain] && (() => {
+              const domain = results[expandedDomain];
+              const domainScore = domain.averageScore.total;
+              const breakdown = domain.averageScore.breakdown || {};
+              const recommendations = domain.recommendations || [];
+              
+              return (
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">
+                        {expandedDomain === 0 ? '🏠' : '🏢'} {domain.name} — Detailed Analysis
+                      </h3>
+                      <p className="text-slate-600 text-sm mt-1">
+                        {domain.urls.length} URL{domain.urls.length !== 1 ? 's' : ''} analyzed
+                      </p>
+                    </div>
+                    <button onClick={() => setExpandedDomain(null)} className="text-slate-600 hover:text-slate-800 text-xl">✕</button>
+                  </div>
 
-                {/* Pillar Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  {Object.entries(PILLAR_INFO).map(([key, info]) => {
-                    const score = results[expandedDomain].averageScore[key as keyof typeof results[0]['averageScore']] as number;
-                    return (
-                      <div key={key} className="bg-[#0f172a] rounded-xl p-4 border border-[#334155]">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-semibold text-white" style={{ color: info.color }}>{info.name}</span>
-                          <span className="text-lg font-bold" style={{ color: info.color }}>{score}/{info.max}</span>
-                        </div>
-                        <div className="h-2 bg-[#334155] rounded-full overflow-hidden mb-3">
-                          <div className="h-full rounded-full" style={{ width: `${(score / info.max) * 100}%`, backgroundColor: info.color }} />
-                        </div>
-                        <div className="space-y-1">
-                          {info.tips.map((tip, i) => (
-                            <p key={i} className="text-xs text-slate-400 flex items-center gap-1">
-                              <span className="text-[#10b981]">💡</span> {tip}
-                            </p>
-                          ))}
+                  {/* Top Cards Row - Site Health + Errors/Warnings/Notices */}
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+                    {/* Site Health Card */}
+                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                      <div className="text-sm text-slate-700 mb-4">Site Health</div>
+                      <div className="relative flex items-center justify-center mb-4" style={{ height: '80px' }}>
+                        {/* Semi-circular progress bar */}
+                        <svg className="w-full h-full" viewBox="0 0 200 100" style={{ height: '80px' }}>
+                          {/* Background arc */}
+                          <path
+                            d="M 20 80 A 80 80 0 0 1 180 80"
+                            fill="none"
+                            stroke="#e5e7eb"
+                            strokeWidth="12"
+                            strokeLinecap="round"
+                          />
+                          {/* Progress arc */}
+                          <path
+                            d="M 20 80 A 80 80 0 0 1 180 80"
+                            fill="none"
+                            stroke={domainScore >= 70 ? '#10b981' : domainScore >= 50 ? '#eab308' : '#ef4444'}
+                            strokeWidth="12"
+                            strokeLinecap="round"
+                            strokeDasharray={`${(domainScore / 100) * 251.2} 251.2`}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center" style={{ top: '20px' }}>
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-slate-800">{domainScore}%</div>
+                          </div>
                         </div>
                       </div>
-                    );
-                  })}
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <span className="text-slate-700">{domain.name}</span>
+                          <span className="font-semibold text-slate-800">{domainScore}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                          <span className="text-slate-700">Top-10% websites</span>
+                          <span className="font-semibold text-slate-800">92%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Errors Card */}
+                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                      <div className="text-sm text-slate-700 mb-2">Errors</div>
+                      <div className="text-3xl font-bold text-red-600 mb-1">
+                        {recommendations.filter((r: any) => r.priority === 'HIGH').length}
+                      </div>
+                      <div className="text-xs text-slate-600">Critical issues found</div>
+                    </div>
+
+                    {/* Warnings Card */}
+                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                      <div className="text-sm text-slate-700 mb-2">Warnings</div>
+                      <div className="text-3xl font-bold text-orange-600 mb-1">
+                        {recommendations.filter((r: any) => r.priority === 'MEDIUM').length}
+                      </div>
+                      <div className="text-xs text-slate-600">Needs attention</div>
+                    </div>
+
+                    {/* Notices Card */}
+                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                      <div className="text-sm text-slate-700 mb-2">Notices</div>
+                      <div className="text-3xl font-bold text-blue-600 mb-1">
+                        {recommendations.filter((r: any) => r.priority === 'LOW').length}
+                      </div>
+                      <div className="text-xs text-slate-600">Optimization tips</div>
+                    </div>
+                  </div>
+
+                  {/* Warning card when data sources are missing */}
+                  {Array.isArray(domain.warnings) && domain.warnings.length > 0 && (
+                    <div className="mb-6 rounded-xl border border-red-400 bg-red-50 px-4 py-3 flex items-start gap-3 text-left">
+                      <div className="mt-0.5 text-red-600 text-xl">⚠️</div>
+                      <div>
+                        <p className="font-semibold text-red-800 mb-1">Pay attention!</p>
+                        <ul className="text-sm text-red-700 space-y-1">
+                          {domain.warnings.map((msg: string, idx: number) => (
+                            <li key={idx}>{msg}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
+                {/* Pillar Details with Metric Breakdown */}
+                <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">5-Pillar Breakdown</h3>
+                  <div className="space-y-6">
+                    {Object.entries(PILLAR_INFO).map(([key, info]) => {
+                      const score = domain.averageScore[key as keyof typeof domain.averageScore] as number;
+                      const pillarBreakdown = breakdown[key] || {};
+                      
+                      // Metric labels for each pillar
+                      const metricLabels: Record<string, Record<string, { label: string; max: number }>> = {
+                        contentStructure: {
+                          schema: { label: 'Schema Markup', max: 8 },
+                          headings: { label: 'Heading Structure', max: 6 },
+                          multimodal: { label: 'Multimodal Content', max: 5 },
+                          imageAlt: { label: 'Image ALT Tags', max: 3 },
+                          tableLists: { label: 'Tables & Lists', max: 2 },
+                          directAnswer: { label: 'Direct Answer', max: 5 },
+                          contentGap: { label: 'Content Depth', max: 3 },
+                        },
+                        brandRanking: {
+                          brandSearch: { label: 'Branded Search Rank', max: 5 },
+                          brandSentiment: { label: 'Brand Sentiment', max: 5 },
+                        },
+                        websiteTechnical: {
+                          lcp: { label: 'LCP (Load Speed)', max: 3 },
+                          inp: { label: 'INP (Interactivity)', max: 2 },
+                          cls: { label: 'CLS (Visual Stability)', max: 2 },
+                          mobile: { label: 'Mobile Performance', max: 3 },
+                          ssl: { label: 'SSL/HTTPS Security', max: 3 },
+                          brokenLinks: { label: 'Link Health', max: 2 },
+                          llmsTxt: { label: 'LLMs.txt', max: 1.5 },
+                          sitemap: { label: 'Sitemap.xml', max: 1.5 },
+                        },
+                        keywordVisibility: {
+                          keywords: { label: 'Organic Keywords', max: 10 },
+                          positions: { label: 'Average Position', max: 7.5 },
+                          intentMatch: { label: 'Search Intent Match', max: 7.5 },
+                        },
+                        aiTrust: {
+                          backlinks: { label: 'Backlink Quality', max: 7.5 },
+                          referringDomains: { label: 'Referring Domains', max: 5 },
+                          sentiment: { label: 'AI Sentiment Score', max: 5 },
+                          eeat: { label: 'E-E-A-T Signals', max: 5 },
+                          local: { label: 'Local/GEO Signals', max: 2.5 },
+                        },
+                      };
+                      
+                      return (
+                        <div key={key} className="bg-white/80 rounded-xl p-4 border border-slate-300">
+                          {/* Pillar Header */}
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-semibold text-slate-800" style={{ color: info.color }}>{info.name}</span>
+                            <span className="text-lg font-bold" style={{ color: info.color }}>{score.toFixed(1)}/{info.max}</span>
+                          </div>
+                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden mb-4">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min((score / info.max) * 100, 100)}%`, backgroundColor: info.color }} />
+                          </div>
+                          
+                          {/* Metric Breakdown */}
+                          {metricLabels[key] && Object.entries(metricLabels[key]).map(([metricKey, { label, max }]) => {
+                            const metric = pillarBreakdown[metricKey];
+                            // Always show Brand Ranking metrics even if score is 0
+                            if (!metric && key !== 'brandRanking') return null;
+                            
+                            // For Brand Ranking, show metrics even if they don't exist (they'll be 0)
+                            const itemScore = metric ? (typeof metric === 'number' ? metric : (metric.score ?? 0)) : 0;
+                            const itemPercentage = Math.round((itemScore / max) * 100);
+                            const itemValue = metric && typeof metric === 'object' ? metric.value : undefined;
+                            const insight = metric && typeof metric === 'object' ? metric.insight : undefined;
+                            const recommendation = metric && typeof metric === 'object' ? metric.recommendation : undefined;
+                            const def = METRIC_DEFINITIONS[metricKey];
+                            
+                            return (
+                              <div key={metricKey} className="mb-4 pb-4 border-b border-slate-200 last:border-0 last:pb-0 last:mb-0">
+                                {/* Metric Header with Tooltip */}
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="flex-1 flex items-center gap-2">
+                                    <div className="text-sm font-medium text-slate-800">{label}</div>
+                                    {def && (
+                                      <InfoTooltip
+                                        metricKey={metricKey}
+                                        definitions={METRIC_DEFINITIONS}
+                                        isActive={activeTooltip === `${key}-${metricKey}`}
+                                        onToggle={() => setActiveTooltip(activeTooltip === `${key}-${metricKey}` ? null : `${key}-${metricKey}`)}
+                                      />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-xs text-slate-500">
+                                      {itemScore.toFixed(1)}/{max} pts ({itemPercentage}%)
+                                    </div>
+                                    <div className={`px-2 py-1 rounded text-xs font-semibold ${
+                                      itemPercentage >= 70 ? 'bg-green-100 text-green-700' :
+                                      itemPercentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-red-100 text-red-700'
+                                    }`}>
+                                      {itemPercentage >= 70 ? 'Good' : itemPercentage >= 40 ? 'Fair' : 'Poor'}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Progress Bar */}
+                                <div className="w-full bg-slate-100 rounded-full h-1.5 mb-3">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all ${
+                                      itemPercentage >= 70 ? 'bg-green-500' :
+                                      itemPercentage >= 40 ? 'bg-yellow-500' :
+                                      'bg-red-500'
+                                    }`}
+                                    style={{ width: `${Math.min(itemPercentage, 100)}%` }}
+                                  ></div>
+                                </div>
+                                
+                                {/* Result Explanation */}
+                                <div className="bg-white/60 rounded-lg p-3 text-xs border border-slate-300">
+                                  <div className="font-semibold text-slate-800 mb-1">Result:</div>
+                                  <div className="text-slate-700 leading-relaxed">
+                                    {insight ? (
+                                      <span>{insight}</span>
+                                    ) : itemValue ? (
+                                      <span>
+                                        {typeof itemValue === 'string' ? itemValue : `${label}: ${itemValue}`}
+                                      </span>
+                                    ) : (
+                                      <span>
+                                        {label} scored {itemScore.toFixed(1)}/{max} points.
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Recommendation if available */}
+                                  {recommendation && (
+                                    <div className="mt-2 pt-2 border-t border-slate-300">
+                                      <div className="font-semibold text-emerald-700 mb-1">💡 How to Improve:</div>
+                                      <div className="text-slate-700">{recommendation}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* What This Site Can Improve */}
+                {recommendations.length > 0 && (
+                  <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">What This Site Can Improve</h3>
+                    <div className="space-y-4">
+                      {recommendations.map((rec: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className={`p-4 rounded-lg border-l-4 ${
+                            rec.priority === 'HIGH' ? 'bg-red-50 border-red-500' :
+                            rec.priority === 'MEDIUM' ? 'bg-yellow-50 border-yellow-500' :
+                            'bg-green-50 border-green-500'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="text-lg">{rec.priority === 'HIGH' ? '🔴' : rec.priority === 'MEDIUM' ? '🟡' : '🟢'}</span>
+                            <div className="flex-1">
+                              {rec.metricName && rec.currentScore !== undefined && rec.maxScore !== undefined && (
+                                <div className="text-sm font-semibold text-slate-700 mb-1">
+                                  {rec.metricName} {rec.currentScore.toFixed(1)}/{rec.maxScore} pts
+                                  {rec.pointsLost !== undefined && rec.pointsLost > 0 && (
+                                    <span className="text-red-600 ml-2">- Lost {rec.pointsLost.toFixed(1)} points</span>
+                                  )}
+                                </div>
+                              )}
+                              <div className="text-slate-800 font-semibold mb-1">{rec.title || rec.message || 'Improvement needed'}</div>
+                              <div className="text-sm text-slate-700 mb-2">{rec.description || rec.message || ''}</div>
+                              {rec.impact && (
+                                <div className="text-xs text-slate-600 font-medium">{rec.impact}</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* URL Table */}
-                <div className="bg-[#0f172a] rounded-xl p-4">
-                  <h4 className="font-semibold text-white mb-4">Individual URL Scores</h4>
+                <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                  <h4 className="font-semibold text-slate-800 mb-4">Individual URL Scores</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-left text-slate-400 border-b border-[#334155]">
+                        <tr className="text-left text-slate-600 border-b border-slate-300">
                           <th className="pb-3">URL</th>
                           <th className="pb-3 text-right">Score</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {results[expandedDomain].urlResults.map((u, i) => (
-                          <tr key={i} className="border-b border-[#1e293b]">
-                            <td className="py-2 text-white truncate max-w-md">{u.url}</td>
-                            <td className={`py-2 text-right font-bold ${u.score >= 70 ? 'text-[#10b981]' : u.score >= 50 ? 'text-yellow-400' : 'text-red-400'
+                        {domain.urlResults.map((u, i) => (
+                          <tr key={i} className="border-b border-slate-200">
+                            <td className="py-2 text-slate-800 truncate max-w-md">{u.url}</td>
+                            <td className={`py-2 text-right font-bold ${u.score >= 70 ? 'text-green-600' : u.score >= 50 ? 'text-yellow-600' : 'text-red-600'
                               }`}>{u.score}/100</td>
                           </tr>
                         ))}
@@ -602,31 +1081,32 @@ export default function InternalDashboard() {
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* Recommendations */}
             {showRecommendations && (
-              <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] rounded-2xl p-6 border border-[#10b981]/30">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+                <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
                   🎯 Personalized AIO & GEO Optimization
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {results.map((domain, index) => (
-                    <div key={index} className="bg-[#0f172a] rounded-xl p-4 border border-[#334155]">
+                    <div key={index} className="bg-white/80 rounded-xl p-4 border border-slate-300">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-semibold text-white text-sm">{index === 0 ? '🏠' : '🏢'} {domain.name}</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${domain.averageScore.total >= 70 ? 'bg-[#10b981]/20 text-[#10b981]' :
-                          domain.averageScore.total >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                        <span className="font-semibold text-slate-800 text-sm">{index === 0 ? '🏠' : '🏢'} {domain.name}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${domain.averageScore.total >= 70 ? 'bg-green-100 text-green-700' :
+                          domain.averageScore.total >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                           }`}>{domain.averageScore.total}</span>
                       </div>
                       <ul className="space-y-2">
                         {(domain.recommendations || []).slice(0, 3).map((rec, i) => (
-                          <li key={i} className="text-xs text-slate-400 flex items-start gap-2">
-                            <span className="text-[#10b981] mt-0.5">→</span>{rec}
+                          <li key={i} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-emerald-600 mt-0.5">→</span>{typeof rec === 'string' ? rec : (rec.title || rec.message || rec.description || '')}
                           </li>
                         ))}
                         {(!domain.recommendations || domain.recommendations.length === 0) && (
-                          <li className="text-xs text-[#10b981]">✅ Great! Site is well optimized.</li>
+                          <li className="text-xs text-emerald-700">✅ Great! Site is well optimized.</li>
                         )}
                       </ul>
                     </div>
@@ -636,12 +1116,12 @@ export default function InternalDashboard() {
             )}
 
             {/* Comparison Table */}
-            <div className="bg-[#1e293b] rounded-2xl p-6 border border-[#334155]">
-              <h3 className="text-xl font-bold text-white mb-6">📊 5-Pillar Comparison</h3>
+            <div className="rounded-2xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+              <h3 className="text-xl font-bold text-slate-800 mb-6">📊 5-Pillar Comparison</h3>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="text-left text-slate-400 border-b border-[#334155] text-sm">
+                    <tr className="text-left text-slate-700 border-b border-slate-300 text-sm">
                       <th className="pb-3 pr-4">Domain</th>
                       <th className="pb-3 text-center">Total</th>
                       <th className="pb-3 text-center">Content<br />/28</th>
@@ -653,13 +1133,13 @@ export default function InternalDashboard() {
                   </thead>
                   <tbody>
                     {results.map((domain, index) => (
-                      <tr key={index} className={`border-b border-[#0f172a] ${index === 0 ? 'bg-[#10b981]/10' : ''}`}>
-                        <td className="py-4 pr-4 text-white font-medium">
+                      <tr key={index} className={`border-b border-slate-200 ${index === 0 ? 'bg-white/40' : ''}`}>
+                        <td className="py-4 pr-4 text-slate-800 font-medium">
                           {index === 0 ? '🏠' : '🏢'} {domain.name}
                         </td>
                         <td className="py-4 text-center">
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${domain.averageScore.total >= 70 ? 'bg-[#10b981]/20 text-[#10b981]' :
-                            domain.averageScore.total >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${domain.averageScore.total >= 70 ? 'bg-green-100 text-green-700' :
+                            domain.averageScore.total >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                             }`}>{domain.averageScore.total}</span>
                         </td>
                         <td className="py-4 text-center text-[#14b8a6] font-medium">{domain.averageScore.contentStructure}/28</td>
@@ -678,11 +1158,76 @@ export default function InternalDashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#1e293b] mt-16 py-8">
+      <footer className="border-t border-slate-300 mt-16 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-slate-500 text-sm">© {new Date().getFullYear()} SAO Auditor by Conductor</p>
+          <p className="text-slate-600 text-sm">© {new Date().getFullYear()} SAO Auditor by Conductor</p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// Tooltip Component
+function InfoTooltip({
+  metricKey,
+  definitions,
+  isActive,
+  onToggle,
+}: {
+  metricKey: string;
+  definitions: Record<string, { title: string; description: string; tips: string }>;
+  isActive: boolean;
+  onToggle: () => void;
+}) {
+  const def = definitions[metricKey];
+  if (!def) return null;
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className="ml-1 w-4 h-4 rounded-full bg-slate-600 hover:bg-slate-500 text-white text-xs flex items-center justify-center transition"
+        title="Click for more info"
+      >
+        ?
+      </button>
+
+      {isActive && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+          />
+
+          {/* Tooltip */}
+          <div className="absolute z-50 left-0 top-6 w-72 p-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl">
+            <div className="flex items-start justify-between mb-2">
+              <h4 className="font-semibold text-white text-sm">{def.title}</h4>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-slate-300 text-xs mb-3">{def.description}</p>
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">
+              <div className="text-emerald-400 text-xs font-medium mb-1">💡 Tips</div>
+              <p className="text-slate-400 text-xs">{def.tips}</p>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

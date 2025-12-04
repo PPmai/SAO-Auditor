@@ -30,7 +30,8 @@ export default function AdminLoginPage() {
         throw new Error(data.error || 'Login failed');
       }
 
-      router.push('/admin');
+      // Redirect to internal dashboard after login
+      router.push('/internal');
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
@@ -40,25 +41,25 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#e0f2fe' }}>
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] rounded-2xl mb-4">
             <span className="text-3xl">🔐</span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">
             Admin Portal
           </h1>
-          <p className="text-slate-400">SAO Auditor Administration</p>
+          <p className="text-slate-700">SAO Auditor Administration</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-white/20">
+        <div className="rounded-2xl p-8 shadow-xl border border-slate-300" style={{ backgroundColor: '#79B4EE' }}>
           <form onSubmit={handleLogin} className="space-y-6">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-slate-800 mb-2">
                 Admin Email
               </label>
               <input
@@ -66,7 +67,7 @@ export default function AdminLoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#38bdf8] shadow-sm"
                 placeholder="admin@example.com"
                 required
               />
@@ -74,7 +75,7 @@ export default function AdminLoginPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-slate-800 mb-2">
                 Password
               </label>
               <input
@@ -82,7 +83,7 @@ export default function AdminLoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#38bdf8] shadow-sm"
                 placeholder="••••••••"
                 required
               />
@@ -90,7 +91,7 @@ export default function AdminLoginPage() {
 
             {/* Error */}
             {error && (
-              <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
+              <div className="p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm">
                 {error}
               </div>
             )}
@@ -99,7 +100,7 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/50 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] disabled:opacity-50 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2 shadow-md"
             >
               {loading ? (
                 <>
@@ -115,7 +116,7 @@ export default function AdminLoginPage() {
 
         {/* Back to home */}
         <div className="text-center mt-6">
-          <Link href="/" className="text-slate-400 hover:text-white text-sm">
+          <Link href="/" className="text-slate-700 hover:text-slate-800 text-sm">
             ← Back to home
           </Link>
         </div>

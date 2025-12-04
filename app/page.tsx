@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import LoadingPopup from './components/LoadingPopup';
 
 // Metric definitions/explanations
 const METRIC_DEFINITIONS: Record<string, { title: string; description: string; tips: string }> = {
@@ -174,12 +175,70 @@ export default function Home() {
   const [error, setError] = useState('');
   const [expandedPillar, setExpandedPillar] = useState<string | null>(null);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('Starting analysis...');
+
+  // Simulate progress during scan
+  useEffect(() => {
+    if (!loading) {
+      setProgress(0);
+      return;
+    }
+
+    // Start at 1%
+    setProgress(1);
+    setStatusMessage('Starting analysis...');
+
+    // Simulate progress through 25 metrics (1 metric = 4%)
+    const progressSteps = [
+      { progress: 4, message: 'Fetching cloud data...' },
+      { progress: 8, message: 'Scraping website content...' },
+      { progress: 12, message: 'Analyzing HTML structure...' },
+      { progress: 16, message: 'Checking schema markup...' },
+      { progress: 20, message: 'Evaluating headings...' },
+      { progress: 24, message: 'Counting images and videos...' },
+      { progress: 28, message: 'Measuring Core Web Vitals...' },
+      { progress: 32, message: 'Analyzing page speed...' },
+      { progress: 36, message: 'Checking mobile performance...' },
+      { progress: 40, message: 'Verifying SSL certificate...' },
+      { progress: 44, message: 'Checking sitemap...' },
+      { progress: 48, message: 'Chasing search spiders...' },
+      { progress: 52, message: 'Fetching backlink data...' },
+      { progress: 56, message: 'Counting backlinks...' },
+      { progress: 60, message: 'Analyzing keyword rankings...' },
+      { progress: 64, message: 'Detecting keywords...' },
+      { progress: 68, message: 'Calculating positions...' },
+      { progress: 72, message: 'Matching search intent...' },
+      { progress: 76, message: 'Evaluating E-E-A-T signals...' },
+      { progress: 80, message: 'Checking brand sentiment...' },
+      { progress: 84, message: 'Purring at algorithms...' },
+      { progress: 88, message: 'Calculating scores...' },
+      { progress: 92, message: 'Generating insights...' },
+      { progress: 96, message: 'Preparing recommendations...' },
+      { progress: 100, message: 'Audit Complete! Meow!' },
+    ];
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < progressSteps.length) {
+        const step = progressSteps[currentStep];
+        setProgress(step.progress);
+        setStatusMessage(step.message);
+        currentStep++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 800); // Update every 800ms
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setResult(null);
+    setProgress(0);
 
     try {
       const response = await fetch('/api/scan', {
@@ -191,10 +250,15 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setResult(data);
+      setProgress(100);
+      setStatusMessage('Audit Complete! Meow!');
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      // Small delay to show 100% before closing
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
     }
   };
 
@@ -203,29 +267,32 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-slate-900">
+    <div className="min-h-screen" style={{ backgroundColor: '#e0f2fe' }}>
+      {/* Loading Popup */}
+      {loading && <LoadingPopup progress={progress} statusMessage={statusMessage} />}
+      
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-lg">
+      <header className="border-b border-slate-300/30 bg-white/50 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] rounded-xl flex items-center justify-center">
               <span className="text-xl">🔍</span>
             </div>
             <div>
-              <div className="text-xl font-bold text-white">SAO Auditor</div>
-              <div className="text-xs text-emerald-400">Search & AI Optimization</div>
+              <div className="text-xl font-bold text-slate-800">SAO Auditor</div>
+              <div className="text-xs text-slate-600">Search & AI Optimization</div>
             </div>
           </div>
           <nav className="flex items-center gap-6">
-            <Link href="/pricing" className="text-slate-400 hover:text-white transition">
+            <Link href="/pricing" className="text-slate-600 hover:text-slate-800 transition">
               Pricing
             </Link>
-            <Link href="/admin/login" className="text-slate-400 hover:text-white transition">
+            <Link href="/admin/login" className="text-slate-600 hover:text-slate-800 transition">
               Admin
             </Link>
             <Link
               href="/signup"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition"
+              className="px-4 py-2 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white rounded-lg transition shadow-md"
             >
               Get Started
             </Link>
@@ -235,14 +302,14 @@ export default function Home() {
 
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
+        <h1 className="text-5xl md:text-6xl font-bold text-slate-800 mb-6">
           Is Your Website Ready for
-          <span className="bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent"> AI Search</span>?
+          <span className="bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] bg-clip-text text-transparent"> AI Search</span>?
         </h1>
-        <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-4">
-          <strong className="text-emerald-400">SAO Auditor</strong> - Search & AI Optimization Analyzer
+        <p className="text-xl text-slate-700 max-w-2xl mx-auto mb-4">
+          <strong className="text-slate-800">SAO Auditor</strong> - Search & AI Optimization Analyzer
         </p>
-        <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-12">
+        <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-12">
           Analyze your website's readiness for modern SEO, GEO, and AI-powered search engines.
           Get actionable insights to outrank your competitors.
         </p>
@@ -255,13 +322,13 @@ export default function Home() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="Enter your website URL"
-              className="flex-1 px-6 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="flex-1 px-6 py-4 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#38bdf8] shadow-sm"
               required
             />
             <button
               type="submit"
               disabled={loading}
-              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-semibold rounded-xl transition flex items-center gap-2"
+              className="px-8 py-4 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] disabled:opacity-50 text-white font-semibold rounded-xl transition flex items-center gap-2 shadow-md"
             >
               {loading ? (
                 <>
@@ -275,208 +342,254 @@ export default function Home() {
           </form>
 
           {error && (
-            <div className="mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200">
+            <div className="mt-4 p-4 bg-red-50 border border-red-300 rounded-lg text-red-700">
               {error}
             </div>
           )}
         </div>
       </section>
 
-      {/* Detailed Result */}
+      {/* Detailed Result - Ahrefs Style */}
       {result && (
-        <section className="max-w-5xl mx-auto px-4 pb-20">
-          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Analysis Results</h2>
-                <p className="text-slate-400 text-sm mt-1 truncate max-w-md">{result.url}</p>
-              </div>
-              <span className={`px-4 py-2 rounded-full text-sm font-semibold ${result.score >= 70 ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                result.score >= 50 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                  'bg-red-500/20 text-red-400 border border-red-500/30'
-                }`}>
-                {result.scoreLabel.label}
-              </span>
+        <section className="max-w-7xl mx-auto px-4 pb-20">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-bold text-slate-800">Site Audit: {new URL(result.url).hostname}</h2>
+              <span className="text-slate-600 text-sm">Last updated: {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
             </div>
+            <p className="text-slate-600 text-sm">{result.url}</p>
+          </div>
 
-            {/* Total Score Circle */}
-            <div className="flex items-center justify-center mb-8">
-              <div className="relative">
-                <div className={`w-40 h-40 rounded-full flex items-center justify-center ${result.score >= 70 ? 'bg-gradient-to-br from-green-500 to-emerald-600' :
-                  result.score >= 50 ? 'bg-gradient-to-br from-yellow-500 to-orange-600' :
-                    'bg-gradient-to-br from-red-500 to-rose-600'
-                  }`}>
-                  <div className="w-36 h-36 rounded-full bg-slate-900 flex flex-col items-center justify-center">
-                    <span className="text-5xl font-bold text-white">{result.score}</span>
-                    <span className="text-slate-400 text-sm">/100</span>
+          {/* Top Cards Row - Site Health + Errors/Warnings/Notices */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+            {/* Site Health Card */}
+            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+              <div className="text-sm text-slate-600 mb-4">Site Health</div>
+              <div className="relative flex items-center justify-center mb-4">
+                {/* Semi-circular progress bar */}
+                <svg className="w-32 h-16 transform -rotate-90" viewBox="0 0 100 50">
+                  <path
+                    d="M 10 50 A 40 40 0 0 1 90 50"
+                    fill="none"
+                    stroke="#e5e7eb"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M 10 50 A 40 40 0 0 1 90 50"
+                    fill="none"
+                    stroke={result.score >= 70 ? '#10b981' : result.score >= 50 ? '#eab308' : '#ef4444'}
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(result.score / 100) * 251.2} 251.2`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-slate-800">{result.score}%</div>
                   </div>
+                </div>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-slate-600">Your site</span>
+                  <span className="font-semibold text-slate-800">{result.score}%</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-slate-600">Top-10% websites</span>
+                  <span className="font-semibold text-slate-800">92%</span>
                 </div>
               </div>
             </div>
 
-            {/* Pillar Scores with Breakdowns */}
-            <div className="space-y-4">
-              {/* Content Structure */}
-              <PillarCard
-                pillarKey="content"
-                title="📝 Content Structure"
-                score={result.scores.contentStructure}
-                maxScore={28}
-                isExpanded={expandedPillar === 'content'}
-                onToggle={() => togglePillar('content')}
-                color="emerald"
-                breakdown={result.scores.breakdown?.contentStructure}
-                breakdownLabels={{
-                  schema: { label: 'Schema Markup', max: 8 },
-                  headings: { label: 'Heading Structure', max: 5 },
-                  multimodal: { label: 'Multimodal Content', max: 4 },
-                  imageAlt: { label: 'Image ALT Tags', max: 3 },
-                  tableLists: { label: 'Tables & Lists', max: 2 },
-                  directAnswer: { label: 'Direct Answer (TL;DR)', max: 5 },
-                  contentGap: { label: 'Content Depth', max: 3 },
-                }}
-                definitions={METRIC_DEFINITIONS}
-                pillarDefinition={PILLAR_DEFINITIONS.content}
-                activeTooltip={activeTooltip}
-                setActiveTooltip={setActiveTooltip}
-              />
-
-              {/* Brand Ranking - NEW (10 pts) */}
-              <PillarCard
-                pillarKey="brand"
-                title="🏢 Brand Ranking"
-                score={result.scores.brandRanking}
-                maxScore={9}
-                isExpanded={expandedPillar === 'brand'}
-                onToggle={() => togglePillar('brand')}
-                color="teal"
-                breakdown={result.scores.breakdown?.brandRanking}
-                breakdownLabels={{
-                  brandSearch: { label: 'Branded Search Rank', max: 5 },
-                  brandSentiment: { label: 'Brand Sentiment', max: 5 },
-                }}
-                definitions={METRIC_DEFINITIONS}
-                pillarDefinition={PILLAR_DEFINITIONS.brand}
-                activeTooltip={activeTooltip}
-                setActiveTooltip={setActiveTooltip}
-              />
-
-              {/* Website Technical - NEW (18 pts) */}
-              <PillarCard
-                pillarKey="technical"
-                title="⚙️ Website Technical"
-                score={result.scores.websiteTechnical || 0}
-                maxScore={17}
-                isExpanded={expandedPillar === 'technical'}
-                onToggle={() => togglePillar('technical')}
-                color="sky"
-                breakdown={result.scores.breakdown?.websiteTechnical}
-                breakdownLabels={{
-                  lcp: { label: 'LCP (Load Speed)', max: 3 },
-                  inp: { label: 'INP (Interactivity)', max: 2 },
-                  cls: { label: 'CLS (Visual Stability)', max: 2 },
-                  mobile: { label: 'Mobile Performance', max: 3 },
-                  ssl: { label: 'SSL/HTTPS Security', max: 3 },
-                  brokenLinks: { label: 'Link Health', max: 2 },
-                  llmsTxt: { label: 'LLMs.txt', max: 1.5 },
-                  sitemap: { label: 'Sitemap.xml', max: 1.5 },
-                }}
-                definitions={METRIC_DEFINITIONS}
-                pillarDefinition={{ title: 'Website Technical', description: 'Evaluates Core Web Vitals, security, and AI crawler compatibility.' }}
-                activeTooltip={activeTooltip}
-                setActiveTooltip={setActiveTooltip}
-              />
-
-              {/* Keyword Visibility */}
-              <PillarCard
-                pillarKey="keyword"
-                title="🔍 Keyword Visibility"
-                score={result.scores.keywordVisibility}
-                maxScore={23}
-                isExpanded={expandedPillar === 'keyword'}
-                onToggle={() => togglePillar('keyword')}
-                color="cyan"
-                breakdown={result.scores.breakdown?.keywordVisibility}
-                breakdownLabels={{
-                  keywords: { label: 'Organic Keywords (vs SERP)', max: 10 },
-                  positions: { label: 'Average Position', max: 7.5 },
-                  intentMatch: { label: 'Search Intent Match', max: 7.5 },
-                }}
-                definitions={METRIC_DEFINITIONS}
-                pillarDefinition={PILLAR_DEFINITIONS.keyword}
-                activeTooltip={activeTooltip}
-                setActiveTooltip={setActiveTooltip}
-              />
-
-              {/* AI Trust */}
-              <PillarCard
-                pillarKey="trust"
-                title="🤖 AI Trust"
-                score={result.scores.aiTrust}
-                maxScore={23}
-                isExpanded={expandedPillar === 'trust'}
-                onToggle={() => togglePillar('trust')}
-                color="sky"
-                breakdown={result.scores.breakdown?.aiTrust}
-                breakdownLabels={{
-                  backlinks: { label: 'Backlink Quality', max: 7.5 },
-                  referringDomains: { label: 'Referring Domains', max: 5 },
-                  sentiment: { label: 'AI Sentiment Score', max: 5 },
-                  eeat: { label: 'E-E-A-T Signals', max: 5 },
-                  local: { label: 'Local/GEO Signals', max: 2.5 },
-                }}
-                definitions={METRIC_DEFINITIONS}
-                pillarDefinition={PILLAR_DEFINITIONS.trust}
-                activeTooltip={activeTooltip}
-                setActiveTooltip={setActiveTooltip}
-              />
+            {/* Errors Card */}
+            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+              <div className="text-sm text-slate-700 mb-2">Errors</div>
+              <div className="text-3xl font-bold text-red-600 mb-1">
+                {result.recommendations?.filter((r: any) => r.priority === 'HIGH').length || 0}
+              </div>
+              <div className="text-xs text-slate-600">Critical issues found</div>
             </div>
 
-            {/* Recommendations */}
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-white mb-4">🎯 Top Recommendations</h3>
-              <div className="space-y-3">
-                {result.recommendations.slice(0, 5).map((rec: any, idx: number) => (
+            {/* Warnings Card */}
+            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+              <div className="text-sm text-slate-700 mb-2">Warnings</div>
+              <div className="text-3xl font-bold text-orange-600 mb-1">
+                {result.recommendations?.filter((r: any) => r.priority === 'MEDIUM').length || 0}
+              </div>
+              <div className="text-xs text-slate-600">Needs attention</div>
+            </div>
+
+            {/* Notices Card */}
+            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+              <div className="text-sm text-slate-700 mb-2">Notices</div>
+              <div className="text-3xl font-bold text-blue-600 mb-1">
+                {result.recommendations?.filter((r: any) => r.priority === 'LOW').length || 0}
+              </div>
+              <div className="text-xs text-slate-600">Optimization tips</div>
+            </div>
+          </div>
+
+          {/* Warning card when data sources are missing or APIs failed */}
+          {Array.isArray(result.warnings) && result.warnings.length > 0 && (
+            <div className="mb-6 rounded-xl border border-red-400 bg-red-50 px-4 py-3 flex items-start gap-3 text-left">
+              <div className="mt-0.5 text-red-600 text-xl">⚠️</div>
+              <div>
+                <p className="font-semibold text-red-800 mb-1">Pay attention!</p>
+                <ul className="text-sm text-red-700 space-y-1">
+                  {result.warnings.map((msg: string, idx: number) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Thematic Reports Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {/* Content Structure Card */}
+            <ThematicReportCard
+              title="Content Structure"
+              score={result.scores.contentStructure}
+              maxScore={30}
+              breakdown={result.scores.breakdown?.contentStructure}
+              breakdownLabels={{
+                schema: { label: 'Schema Markup', max: 8 },
+                headings: { label: 'Heading Structure', max: 6 },
+                multimodal: { label: 'Multimodal Content', max: 5 },
+                imageAlt: { label: 'Image ALT Tags', max: 3 },
+                tableLists: { label: 'Tables & Lists', max: 2 },
+                directAnswer: { label: 'Direct Answer', max: 5 },
+                contentGap: { label: 'Content Depth', max: 3 },
+              }}
+              definitions={METRIC_DEFINITIONS}
+            />
+
+            {/* Brand Ranking Card */}
+            <ThematicReportCard
+              title="Brand Ranking"
+              score={result.scores.brandRanking}
+              maxScore={10}
+              breakdown={result.scores.breakdown?.brandRanking}
+              breakdownLabels={{
+                brandSearch: { label: 'Branded Search Rank', max: 5 },
+                brandSentiment: { label: 'Brand Sentiment', max: 5 },
+              }}
+              definitions={METRIC_DEFINITIONS}
+            />
+
+            {/* Website Technical Card */}
+            <ThematicReportCard
+              title="Website Technical"
+              score={result.scores.websiteTechnical || 0}
+              maxScore={18}
+              breakdown={result.scores.breakdown?.websiteTechnical}
+              breakdownLabels={{
+                lcp: { label: 'LCP (Load Speed)', max: 3 },
+                inp: { label: 'INP (Interactivity)', max: 2 },
+                cls: { label: 'CLS (Visual Stability)', max: 2 },
+                mobile: { label: 'Mobile Performance', max: 3 },
+                ssl: { label: 'SSL/HTTPS Security', max: 3 },
+                brokenLinks: { label: 'Link Health', max: 2 },
+                llmsTxt: { label: 'LLMs.txt', max: 1.5 },
+                sitemap: { label: 'Sitemap.xml', max: 1.5 },
+              }}
+              definitions={METRIC_DEFINITIONS}
+            />
+
+            {/* Keyword Visibility Card */}
+            <ThematicReportCard
+              title="Keyword Visibility"
+              score={result.scores.keywordVisibility}
+              maxScore={25}
+              breakdown={result.scores.breakdown?.keywordVisibility}
+              breakdownLabels={{
+                keywords: { label: 'Organic Keywords', max: 10 },
+                positions: { label: 'Average Position', max: 7.5 },
+                intentMatch: { label: 'Search Intent Match', max: 7.5 },
+              }}
+              definitions={METRIC_DEFINITIONS}
+            />
+
+            {/* AI Trust Card */}
+            <ThematicReportCard
+              title="AI Trust"
+              score={result.scores.aiTrust}
+              maxScore={25}
+              breakdown={result.scores.breakdown?.aiTrust}
+              breakdownLabels={{
+                backlinks: { label: 'Backlink Quality', max: 7.5 },
+                referringDomains: { label: 'Referring Domains', max: 5 },
+                sentiment: { label: 'AI Sentiment Score', max: 5 },
+                eeat: { label: 'E-E-A-T Signals', max: 5 },
+                local: { label: 'Local/GEO Signals', max: 2.5 },
+              }}
+              definitions={METRIC_DEFINITIONS}
+            />
+          </div>
+
+          {/* What This Site Can Improve */}
+          <div className="rounded-xl p-6 shadow-sm mb-6" style={{ backgroundColor: '#79B4EE' }}>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">What This Site Can Improve</h3>
+            <div className="space-y-4">
+              {result.recommendations && result.recommendations.length > 0 ? (
+                result.recommendations.map((rec: any, idx: number) => (
                   <div
                     key={idx}
-                    className={`p-4 rounded-lg border-l-4 ${rec.priority === 'HIGH' ? 'bg-red-500/10 border-red-500' :
-                      rec.priority === 'MEDIUM' ? 'bg-yellow-500/10 border-yellow-500' :
-                        'bg-green-500/10 border-green-500'
-                      }`}
+                    className={`p-4 rounded-lg border-l-4 ${
+                      rec.priority === 'HIGH' ? 'bg-red-50 border-red-500' :
+                      rec.priority === 'MEDIUM' ? 'bg-yellow-50 border-yellow-500' :
+                      'bg-green-50 border-green-500'
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-lg">{rec.priority === 'HIGH' ? '🔴' : rec.priority === 'MEDIUM' ? '🟡' : '🟢'}</span>
                       <div className="flex-1">
-                        <div className="text-white font-medium">{rec.title}</div>
-                        <div className="text-sm text-slate-400 mt-1">{rec.description}</div>
-                        <div className="text-xs text-slate-500 mt-2">{rec.impact}</div>
+                        {rec.metricName && rec.currentScore !== undefined && rec.maxScore !== undefined && (
+                          <div className="text-sm font-semibold text-slate-700 mb-1">
+                            {rec.metricName} {rec.currentScore.toFixed(1)}/{rec.maxScore} pts
+                            {rec.pointsLost !== undefined && rec.pointsLost > 0 && (
+                              <span className="text-red-600 ml-2">- Lost {rec.pointsLost.toFixed(1)} points</span>
+                            )}
+                          </div>
+                        )}
+                        <div className="text-slate-800 font-semibold mb-1">{rec.title}</div>
+                        <div className="text-sm text-slate-700 mb-2">{rec.description}</div>
+                        {rec.impact && (
+                          <div className="text-xs text-slate-600 font-medium">{rec.impact}</div>
+                        )}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              ) : (
+                <div className="text-slate-600 text-sm">No specific recommendations available. Your site is performing well!</div>
+              )}
             </div>
+          </div>
 
-            {/* CTA */}
-            <div className="mt-8 text-center">
-              <Link
-                href="/pricing"
-                className="inline-block px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition"
-              >
-                Get Full Report with Competitors →
-              </Link>
-            </div>
+          {/* CTA */}
+          <div className="mt-8 text-center">
+            <Link
+              href="/pricing"
+              className="inline-block px-8 py-3 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white font-semibold rounded-lg transition shadow-md"
+            >
+              Get Full Report with Competitors →
+            </Link>
           </div>
         </section>
       )}
 
       {/* Features */}
       {!result && (
-        <section className="max-w-7xl mx-auto px-4 py-20 border-t border-white/10">
-          <h2 className="text-3xl font-bold text-white text-center mb-12">
-            4 Pillars of Search & AI Optimization
+        <section className="max-w-7xl mx-auto px-4 py-20 border-t border-slate-300">
+          <h2 className="text-3xl font-bold text-slate-800 text-center mb-12">
+            5 Pillars of Search & AI Optimization
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             <FeatureCard
               icon="📝"
               title="Content Structure"
@@ -485,7 +598,12 @@ export default function Home() {
             <FeatureCard
               icon="🏢"
               title="Brand Ranking"
-              description="Core Web Vitals, mobile-friendliness, SSL, and technical SEO signals"
+              description="Branded search rank and community sentiment analysis"
+            />
+            <FeatureCard
+              icon="⚙️"
+              title="Website Technical"
+              description="Core Web Vitals, mobile performance, SSL, and AI crawler compatibility"
             />
             <FeatureCard
               icon="🔍"
@@ -502,23 +620,23 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-8">
+      <footer className="border-t border-slate-300 py-8">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] rounded-lg flex items-center justify-center">
               <span className="text-sm">🔍</span>
             </div>
             <div>
-              <span className="text-white font-semibold">SAO Auditor</span>
-              <span className="text-slate-500 text-sm ml-2">by Conductor</span>
+              <span className="text-slate-800 font-semibold">SAO Auditor</span>
+              <span className="text-slate-600 text-sm ml-2">by Conductor</span>
             </div>
           </div>
-          <div className="text-slate-400 text-sm">
+          <div className="text-slate-600 text-sm">
             © 2025 SAO Auditor. All rights reserved.
           </div>
           <div className="flex gap-6 text-sm">
-            <Link href="/pricing" className="text-slate-400 hover:text-white">Pricing</Link>
-            <Link href="/admin/login" className="text-slate-400 hover:text-white">Admin</Link>
+            <Link href="/pricing" className="text-slate-600 hover:text-slate-800">Pricing</Link>
+            <Link href="/admin/login" className="text-slate-600 hover:text-slate-800">Admin</Link>
           </div>
         </div>
       </footer>
@@ -634,13 +752,13 @@ function PillarCard({
   }[color] || { bg: 'bg-emerald-500', border: 'border-emerald-500/30', text: 'text-emerald-400' };
 
   return (
-    <div className={`bg-white/5 rounded-xl border ${colorClasses.border} overflow-hidden`}>
+    <div className="rounded-xl border border-slate-300 overflow-hidden shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
       <button
         onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+        className="w-full p-4 flex items-center justify-between hover:bg-white/20 transition"
       >
         <div className="flex items-center gap-3">
-          <span className="text-xl">{title}</span>
+          <span className="text-xl text-slate-800">{title}</span>
           <InfoTooltip
             metricKey={pillarKey}
             definitions={{
@@ -655,11 +773,11 @@ function PillarCard({
           />
         </div>
         <div className="flex items-center gap-4">
-          <span className={`text-2xl font-bold ${colorClasses.text}`}>
-            {score}<span className="text-sm text-slate-500">/{maxScore}</span>
+          <span className="text-2xl font-bold text-slate-800">
+            {score}<span className="text-sm text-slate-600">/{maxScore}</span>
           </span>
           <svg
-            className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 text-slate-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -671,7 +789,7 @@ function PillarCard({
 
       {/* Progress Bar */}
       <div className="px-4 pb-2">
-        <div className="w-full bg-white/10 rounded-full h-2">
+        <div className="w-full bg-white/40 rounded-full h-2">
           <div
             className={`${colorClasses.bg} h-2 rounded-full transition-all duration-500`}
             style={{ width: `${percentage}%` }}
@@ -681,7 +799,7 @@ function PillarCard({
 
       {/* Expanded Breakdown */}
       {isExpanded && breakdown && (
-        <div className="px-4 pb-4 space-y-6 border-t border-white/10 mt-2 pt-4">
+        <div className="px-4 pb-4 space-y-6 border-t border-slate-300 mt-2 pt-4">
           {Object.entries(breakdownLabels).map(([key, { label, max }]) => {
             // Handle both old format (number) and new format (object)
             const rawItem = breakdown[key];
@@ -693,9 +811,9 @@ function PillarCard({
 
 
             return (
-              <div key={key} className="space-y-2">
+                <div key={key} className="space-y-2">
                 <div className="flex justify-between text-sm items-center">
-                  <span className="text-slate-300 flex items-center gap-2">
+                  <span className="text-slate-700 flex items-center gap-2">
                     {label}
                     <InfoTooltip
                       metricKey={key}
@@ -705,18 +823,18 @@ function PillarCard({
                     />
                   </span>
                   <div className="text-right">
-                    <span className={`font-medium ${value >= max * 0.7 ? 'text-green-400' : value >= max * 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <span className={`font-medium ${value >= max * 0.7 ? 'text-green-600' : value >= max * 0.4 ? 'text-yellow-600' : 'text-red-600'}`}>
                       {value.toFixed(1)} / {max} pts
                     </span>
                     {item.value && (
-                      <div className="text-xs text-slate-500 font-mono mt-0.5">
+                      <div className="text-xs text-slate-600 font-mono mt-0.5">
                         {item.value}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="w-full bg-white/10 rounded-full h-1.5">
+                <div className="w-full bg-white/50 rounded-full h-1.5">
                   <div
                     className={`h-1.5 rounded-full transition-all ${value >= max * 0.7 ? 'bg-green-500' :
                       value >= max * 0.4 ? 'bg-yellow-500' :
@@ -728,17 +846,17 @@ function PillarCard({
 
                 {/* Insights & Recommendations */}
                 {(item.insight || item.recommendation) && (
-                  <div className="mt-2 text-xs bg-white/5 rounded-lg p-3 border border-white/5">
+                  <div className="mt-2 text-xs bg-white/60 rounded-lg p-3 border border-slate-300">
                     {item.insight && (
                       <div className="flex gap-2 mb-1">
-                        <span className="text-blue-400 font-semibold">Insight:</span>
-                        <span className="text-slate-300">{item.insight}</span>
+                        <span className="text-blue-700 font-semibold">Insight:</span>
+                        <span className="text-slate-700">{item.insight}</span>
                       </div>
                     )}
                     {item.recommendation && (
                       <div className="flex gap-2">
-                        <span className="text-emerald-400 font-semibold">Rec:</span>
-                        <span className="text-slate-300">{item.recommendation}</span>
+                        <span className="text-emerald-700 font-semibold">Rec:</span>
+                        <span className="text-slate-700">{item.recommendation}</span>
                       </div>
                     )}
                   </div>
@@ -752,12 +870,146 @@ function PillarCard({
   );
 }
 
+// Thematic Report Card Component (Ahrefs-style)
+function ThematicReportCard({
+  title,
+  score,
+  maxScore,
+  breakdown,
+  breakdownLabels,
+  definitions,
+}: {
+  title: string;
+  score: number;
+  maxScore: number;
+  breakdown?: Record<string, { score: number; value?: string | number; insight?: string; recommendation?: string }>;
+  breakdownLabels: Record<string, { label: string; max: number }>;
+  definitions: Record<string, { title: string; description: string; tips: string }>;
+}) {
+  const percentage = Math.round((score / maxScore) * 100);
+  const colorClass = percentage >= 70 ? 'text-blue-600' : percentage >= 50 ? 'text-yellow-600' : 'text-red-600';
+  const bgColorClass = percentage >= 70 ? 'bg-blue-50' : percentage >= 50 ? 'bg-yellow-50' : 'bg-red-50';
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="font-semibold text-slate-800 text-sm">{title}</h4>
+        <div className={`text-2xl font-bold ${colorClass}`}>{percentage}%</div>
+      </div>
+      
+      {/* Circular Progress */}
+      <div className="flex justify-center mb-4">
+        <div className="relative w-20 h-20">
+          <svg className="w-20 h-20 transform -rotate-90">
+            <circle
+              cx="40"
+              cy="40"
+              r="32"
+              stroke="#e5e7eb"
+              strokeWidth="6"
+              fill="none"
+            />
+            <circle
+              cx="40"
+              cy="40"
+              r="32"
+              stroke={percentage >= 70 ? '#3b82f6' : percentage >= 50 ? '#eab308' : '#ef4444'}
+              strokeWidth="6"
+              fill="none"
+              strokeDasharray={`${(percentage / 100) * 201} 201`}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className={`text-lg font-bold ${colorClass}`}>{percentage}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Breakdown with Explanations */}
+      {breakdown && (
+        <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+          {Object.entries(breakdownLabels).map(([key, { label, max }]) => {
+            const item = breakdown[key];
+            if (!item) return null;
+            
+            const itemScore = typeof item === 'number' ? item : (item.score ?? 0);
+            const itemPercentage = Math.round((itemScore / max) * 100);
+            const itemValue = typeof item === 'object' ? item.value : undefined;
+            const insight = typeof item === 'object' ? item.insight : undefined;
+            const recommendation = typeof item === 'object' ? item.recommendation : undefined;
+
+            return (
+              <div key={key} className="space-y-2">
+                {/* Metric Header */}
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-slate-800">{label}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {itemScore.toFixed(1)}/{max} pts ({itemPercentage}%)
+                    </div>
+                  </div>
+                  <div className={`px-2 py-1 rounded text-xs font-semibold ${
+                    itemPercentage >= 70 ? 'bg-green-100 text-green-700' :
+                    itemPercentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {itemPercentage >= 70 ? 'Good' : itemPercentage >= 40 ? 'Fair' : 'Poor'}
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-slate-100 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all ${
+                      itemPercentage >= 70 ? 'bg-green-500' :
+                      itemPercentage >= 40 ? 'bg-yellow-500' :
+                      'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.min(itemPercentage, 100)}%` }}
+                  ></div>
+                </div>
+
+                {/* WHY Explanation */}
+                <div className="bg-white/60 rounded-lg p-3 text-xs border border-slate-300">
+                  <div className="font-semibold text-slate-800 mb-1">Result:</div>
+                  <div className="text-slate-700 leading-relaxed">
+                    {insight ? (
+                      <span>{insight}</span>
+                    ) : itemValue ? (
+                      <span>
+                        {typeof itemValue === 'string' ? itemValue : `${label}: ${itemValue}`}
+                      </span>
+                    ) : (
+                      <span>
+                        {label} scored {itemScore.toFixed(1)}/{max} points.
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Recommendation if available */}
+                  {recommendation && (
+                    <div className="mt-2 pt-2 border-t border-slate-300">
+                      <div className="font-semibold text-emerald-700 mb-1">💡 How to Improve:</div>
+                      <div className="text-slate-700">{recommendation}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FeatureCard({ icon, title, description }: { icon: string; title: string; description: string }) {
   return (
-    <div className="bg-white/5 backdrop-blur-lg rounded-xl p-6 border border-white/10 hover:border-emerald-500/30 transition">
+    <div className="rounded-xl p-6 border border-slate-300 hover:border-[#38bdf8] transition shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
       <div className="text-4xl mb-4">{icon}</div>
-      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-      <p className="text-slate-400 text-sm">{description}</p>
+      <h3 className="text-lg font-semibold text-slate-800 mb-2">{title}</h3>
+      <p className="text-slate-700 text-sm">{description}</p>
     </div>
   );
 }

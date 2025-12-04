@@ -69,13 +69,13 @@ export default function ContactSalesModal({ isOpen, onClose, selectedPlan, price
       />
 
       {/* Modal */}
-      <div className="relative bg-slate-900 rounded-2xl border border-emerald-500/30 w-full max-w-lg overflow-hidden shadow-2xl">
+      <div className="relative rounded-2xl border border-slate-300 w-full max-w-lg overflow-hidden shadow-2xl" style={{ backgroundColor: '#79B4EE' }}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
+        <div className="bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] px-6 py-4">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl font-bold text-white">Contact Sales</h2>
-              <p className="text-emerald-100 text-sm">Get started with SAO Auditor Pro</p>
+              <p className="text-white/90 text-sm">Get started with SAO Auditor Pro</p>
             </div>
             <button
               onClick={handleClose}
@@ -93,13 +93,13 @@ export default function ContactSalesModal({ isOpen, onClose, selectedPlan, price
           {success ? (
             <div className="text-center py-8">
               <div className="text-6xl mb-4">✅</div>
-              <h3 className="text-xl font-bold text-white mb-2">Thank you!</h3>
-              <p className="text-slate-400 mb-6">
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Thank you!</h3>
+              <p className="text-slate-700 mb-6">
                 We've received your inquiry. Our team will contact you within 24 hours.
               </p>
               <button
                 onClick={handleClose}
-                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition"
+                className="px-6 py-2 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white rounded-lg transition shadow-md"
               >
                 Close
               </button>
@@ -108,90 +108,90 @@ export default function ContactSalesModal({ isOpen, onClose, selectedPlan, price
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Selected Plan */}
               {selectedPlan && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm">
-                  <span className="text-slate-400">Selected Plan: </span>
-                  <span className="text-emerald-400 font-semibold">{selectedPlan}</span>
-                  {price && <span className="text-slate-400"> - {price}</span>}
+                <div className="bg-white/60 border border-slate-300 rounded-lg p-3 text-sm">
+                  <span className="text-slate-700">Selected Plan: </span>
+                  <span className="text-slate-800 font-semibold">{selectedPlan}</span>
+                  {price && <span className="text-slate-600"> - {price}</span>}
                 </div>
               )}
 
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Name <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-800 mb-1">
+                  Name <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:outline-none shadow-sm"
                   placeholder="John Doe"
                 />
               </div>
 
               {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Email <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-800 mb-1">
+                  Email <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="email"
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:outline-none shadow-sm"
                   placeholder="john@company.com"
                 />
               </div>
 
               {/* Company */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Company Name <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-800 mb-1">
+                  Company Name <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:outline-none shadow-sm"
                   placeholder="Acme Inc."
                 />
               </div>
 
               {/* Telephone */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Telephone <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-800 mb-1">
+                  Telephone <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="tel"
                   required
                   value={formData.telephone}
                   onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:outline-none shadow-sm"
                   placeholder="+1 (555) 000-0000"
                 />
               </div>
 
               {/* Remark */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
+                <label className="block text-sm font-medium text-slate-800 mb-1">
                   Remarks (Optional)
                 </label>
                 <textarea
                   value={formData.remark}
                   onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none"
+                  className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#38bdf8] focus:outline-none resize-none shadow-sm"
                   placeholder="Tell us about your needs..."
                 />
               </div>
 
               {/* Error */}
               {error && (
-                <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
+                <div className="p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm">
                   {error}
                 </div>
               )}
@@ -200,7 +200,7 @@ export default function ContactSalesModal({ isOpen, onClose, selectedPlan, price
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] disabled:opacity-50 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2 shadow-md"
               >
                 {loading ? (
                   <>
@@ -212,7 +212,7 @@ export default function ContactSalesModal({ isOpen, onClose, selectedPlan, price
                 )}
               </button>
 
-              <p className="text-xs text-slate-500 text-center">
+              <p className="text-xs text-slate-600 text-center">
                 By submitting, you agree to be contacted by our sales team.
               </p>
             </form>
