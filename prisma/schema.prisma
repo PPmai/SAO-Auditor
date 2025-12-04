@@ -1,0 +1,221 @@
+// schema.prisma - Commercial Version
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?   // For email/password auth
+  avatarUrl     String?
+  
+  // Subscription
+  tier          Tier      @default(FREE)
+  stripeCustomerId String? @unique
+  stripeSubscriptionId String?
+  
+  // Usage Tracking
+  scansToday    Int       @default(0)
+  lastScanDate  DateTime?
+  totalScans    Int       @default(0)
+  
+  // API Access (Agency tier)
+  apiKey        String?   @unique
+  apiKeyCreatedAt DateTime?
+  
+  // Relations
+  scans         Scan[]
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum Tier {
+  FREE      // 3 scans/day, no competitors
+  PRO       // Unlimited scans, 4 competitors, PDF, history
+  AGENCY    // API access, white-label
+}
+
+// ============================================
+// SCAN & ANALYSIS
+// ============================================
+
+model Scan {
+  id           String     @id @default(cuid())
+  url          String
+  status       ScanStatus @default(PENDING)
+  
+  // Scores (0-100)
+  totalScore            Int?
+  contentStructureScore Int?
+  brandRankingScore     Int?
+  keywordVisibilityScore Int?
+  aiTrustScore          Int?
+  
+  // Raw Data (JSON)
+  semrushData   Json?
+  pagespeedData Json?
+  claudeData    Json?
+  scrapingData  Json?
+  
+  // Detailed Breakdown
+  scoreBreakdown Json?
+  
+  // Relations
+  userId        String?
+  user          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  competitors   Competitor[]
+  recommendations Recommendation[]
+  
+  // Timestamps
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  // Indexing for queries
+  @@index([userId])
+  @@index([createdAt])
+  @@index([url])
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// COMPETITOR ANALYSIS
+// ============================================
+
+model Competitor {
+  id        String   @id @default(cuid())
+  url       String
+  scanId    String
+  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  
+  // Scores
+  totalScore            Int?
+  contentStructureScore Int?
+  brandRankingScore     Int?
+  keywordVisibilityScore Int?
+  aiTrustScore          Int?
+  
+  // Raw Data
+  rawData       Json?
+  scoreBreakdown Json?
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  
+  @@index([scanId])
+}
+
+// ============================================
+// RECOMMENDATIONS
+// ============================================
+
+model Recommendation {
+  id          String   @id @default(cuid())
+  scanId      String
+  scan        Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  
+  pillar      String   // contentStructure, brandRanking, keywordVisibility, aiTrust
+  priority    Priority
+  title       String
+  description String
+  impact      String   // High, Medium, Low
+  
+  // Optional: link to specific metric
+  metric      String?
+  
+  @@index([scanId])
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+// ============================================
+// API USAGE TRACKING (Agency tier)
+// ============================================
+
+model ApiUsage {
+  id        String   @id @default(cuid())
+  apiKey    String
+  endpoint  String
+  method    String
+  statusCode Int
+  responseTime Int   // in ms
+  
+  createdAt DateTime @default(now())
+  
+  @@index([apiKey])
+  @@index([createdAt])
+}
+
+// ============================================
+// SUBSCRIPTION & PAYMENTS
+// ============================================
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  stripeSubscriptionId String   @unique
+  stripePriceId        String
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  UNPAID
+  TRIALING
+}
+
+// ============================================
+// REPORT EXPORTS
+// ============================================
+
+model Report {
+  id        String   @id @default(cuid())
+  scanId    String
+  userId    String
+  type      ReportType
+  url       String?  // S3/Storage URL for PDF
+  
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+  
+  @@index([userId])
+  @@index([scanId])
+}
+
+enum ReportType {
+  PDF
+  CSV
+  JSON
+}
