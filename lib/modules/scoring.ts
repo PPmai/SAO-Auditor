@@ -210,11 +210,29 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
     multimodalScore + directAnswerScore + contentGapScore
   ));
 
-  // Image ALT scoring (3 pts) - NEW
-  // Checks images >200px, excludes logos/social icons
-  // TODO: Implement proper image analysis
-  const imageAltScore = 0; // Placeholder until image analysis is implemented
-  const imageAltValue = 'Pending analysis';
+  // Image ALT scoring (3 pts) - FIXED
+  // Score based on percentage of images with alt text
+  // Excludes small images (assumed to be icons) in a real implementation
+  let imageAltScore = 0;
+  let imageAltValue = 'No images';
+
+  if (scraping.imageCount > 0) {
+    const altCoverage = (scraping.imagesWithAlt / scraping.imageCount) * 100;
+
+    if (altCoverage >= 80) {
+      imageAltScore = 3;
+      imageAltValue = `${Math.round(altCoverage)}% coverage (Excellent)`;
+    } else if (altCoverage >= 60) {
+      imageAltScore = 2;
+      imageAltValue = `${Math.round(altCoverage)}% coverage (Good)`;
+    } else if (altCoverage >= 40) {
+      imageAltScore = 1;
+      imageAltValue = `${Math.round(altCoverage)}% coverage (Needs improvement)`;
+    } else {
+      imageAltScore = 0;
+      imageAltValue = `${Math.round(altCoverage)}% coverage (Poor)`;
+    }
+  }
 
   return {
     score: total,
@@ -316,9 +334,10 @@ export function calculateWebsiteTechnicalScore(
   if (inpMs <= 200) inpScore = 1;
   // else 0
 
-  // CLS Score (1 point) - STRICT
-  // 0 = 1pt, >0 = 0pts
-  if (pagespeed.cls === 0) clsScore = 1;
+  // CLS Score (1 point) - Per measurement_config.md
+  // ≤0.1 (Good) = 1pt, >0.1 = 0pts
+  const clsValue = pagespeed.cls ?? 0;
+  if (clsValue <= 0.1) clsScore = 1;
   // else 0
 
   // Mobile Score (3 points)
@@ -329,13 +348,11 @@ export function calculateWebsiteTechnicalScore(
   // HTTPS = 3pts, No HTTPS = 0pts
   if (scraping.hasSSL) sslScore = 3;
 
-  // LLMs.txt Score (2.5 points)
-  // TODO: Check if /llms.txt or /llms-full.txt exists
-  llmsTxtScore = 0; // Placeholder until implemented
+  // LLMs.txt Score (2 points) - From scraper detection
+  llmsTxtScore = scraping.hasLlmsTxt ? 2 : 0;
 
-  // Sitemap Score (2.5 points)
-  // TODO: Must have ALL required elements: urlset, loc, lastmod, changefreq, priority
-  sitemapScore = 0; // Placeholder until implemented
+  // Sitemap Score (2 points) - From scraper validation
+  sitemapScore = scraping.sitemapValid ? 2 : 0;
 
   const total = Math.round(
     lcpScore + inpScore + clsScore + mobileScore +
@@ -351,8 +368,8 @@ export function calculateWebsiteTechnicalScore(
       mobile: { score: mobileScore, value: `${pagespeed.mobileScore}/100` },
       ssl: { score: sslScore, value: scraping.hasSSL ? 'HTTPS' : 'No HTTPS' },
       brokenLinks: { score: brokenLinksScore, value: '0 found' },
-      llmsTxt: { score: llmsTxtScore, value: 'Not detected' },
-      sitemap: { score: sitemapScore, value: 'Not checked' }
+      llmsTxt: { score: llmsTxtScore, value: scraping.hasLlmsTxt ? 'Detected ✓' : 'Not found' },
+      sitemap: { score: sitemapScore, value: scraping.sitemapValid ? 'Valid ✓' : 'Missing/Invalid' }
     }
   };
 }
@@ -658,7 +675,7 @@ export function calculateAverageScores(scores: DetailedScores[]): DetailedScores
   if (scores.length === 0) {
     // Return empty/zero structure
     return calculateTotalScore(
-      { url: '', h1: [], h2: [], h3: [], hasSchema: false, schemaTypes: [], tableCount: 0, listCount: 0, imageCount: 0, imagesWithAlt: 0, videoCount: 0, internalLinks: 0, externalLinks: 0, hasSSL: false, hasRobotsTxt: false, wordCount: 0 },
+      { url: '', h1: [], h2: [], h3: [], hasSchema: false, schemaTypes: [], tableCount: 0, listCount: 0, imageCount: 0, imagesWithAlt: 0, videoCount: 0, internalLinks: 0, externalLinks: 0, hasSSL: false, hasRobotsTxt: false, hasLlmsTxt: false, sitemapValid: false, wordCount: 0 },
       { url: '', lcp: 0, fid: 0, cls: 0, mobileScore: 0, lcpCategory: 'POOR', fidCategory: 'POOR', clsCategory: 'POOR', performanceScore: 0, accessibilityScore: 0, seoScore: 0, bestPracticesScore: 0 }
     );
   }

@@ -85,6 +85,7 @@ export async function getUrlKeywords(url: string, country: string = 'th'): Promi
                 target: cleanUrl,
                 mode: 'exact',
                 country: country,
+                date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
                 select: 'keyword,best_position,sum_traffic,is_informational,is_commercial,is_transactional,is_navigational',
                 order_by: 'sum_traffic:desc',
                 limit: 100,
@@ -224,6 +225,7 @@ export async function getBacklinkMetrics(domain: string): Promise<AhrefsBacklink
             params: {
                 target: cleanDomain,
                 mode: 'domain',
+                date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
             },
             timeout: 30000,
         });

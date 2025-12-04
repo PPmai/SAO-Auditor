@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeWebsite } from '@/lib/modules/scraper';
 import { analyzePageSpeed } from '@/lib/modules/pagespeed';
-import { getMozMetrics, isMozConfigured, MozMetrics } from '@/lib/modules/moz';
-import { getDomainKeywords, isDataForSEOConfigured, DomainKeywordMetrics } from '@/lib/modules/dataforseo';
+import { getMozMetrics, MozMetrics } from '@/lib/modules/moz';
+import { DomainKeywordMetrics } from '@/lib/modules/dataforseo';
+import { getUnifiedSEOMetrics, getAPIStatus, toKeywordMetrics, toMozMetrics } from '@/lib/modules/api-manager';
 import { calculateTotalScore, getScoreLabel, compareScores, DetailedScores, calculateAverageScores } from '@/lib/modules/scoring';
 
 export const maxDuration = 120; // Allow up to 2 minutes for analysis
@@ -22,10 +23,10 @@ export async function POST(request: NextRequest) {
   try {
     const body: ScanRequest = await request.json();
     const { url, urls = [], competitors = [], competitorDomains = [], userId } = body;
-    
+
     // Support both single URL and batch URLs
     let urlsToAnalyze: string[] = [];
-    
+
     if (urls.length > 0) {
       // Batch mode - limit to 30 URLs
       urlsToAnalyze = urls.slice(0, 30);
@@ -33,14 +34,14 @@ export async function POST(request: NextRequest) {
       // Single URL mode
       urlsToAnalyze = [url];
     }
-    
+
     if (urlsToAnalyze.length === 0) {
       return NextResponse.json(
         { error: 'At least one URL is required' },
         { status: 400 }
       );
     }
-    
+
     // Validate and normalize URLs
     const validUrls: string[] = [];
     for (const u of urlsToAnalyze) {
@@ -52,17 +53,17 @@ export async function POST(request: NextRequest) {
         console.warn(`Skipping invalid URL: ${u}`);
       }
     }
-    
+
     if (validUrls.length === 0) {
       return NextResponse.json(
         { error: 'No valid URLs provided' },
         { status: 400 }
       );
     }
-    
+
     // Process competitor domains (for internal use)
     let competitorData: { name: string; urls: string[] }[] = [];
-    
+
     if (competitorDomains.length > 0) {
       // Structured competitor input - limit to 4 competitors, 10 URLs each
       competitorData = competitorDomains.slice(0, 4).map(comp => ({
@@ -90,13 +91,14 @@ export async function POST(request: NextRequest) {
         }
       });
     }
-    
+
     console.log(`🔍 Starting analysis for ${validUrls.length} URL(s)`);
-    console.log(`📡 Moz API: ${isMozConfigured() ? 'Configured ✓' : 'Not configured (using estimates)'}`);
+    const status = getAPIStatus();
+    console.log(`📡 API Status: Ahrefs=${status.ahrefs}, DataForSEO=${status.dataforseo}, Moz=${status.moz}`);
     if (competitorData.length > 0) {
       console.log(`📊 With ${competitorData.length} competitor domain(s)`);
     }
-    
+
     // Analyze all main URLs
     const mainUrlResults = await Promise.all(
       validUrls.map(async (u) => {
@@ -111,18 +113,18 @@ export async function POST(request: NextRequest) {
         }
       })
     ).then(results => results.filter(Boolean) as { url: string; analysis: any }[]);
-    
+
     if (mainUrlResults.length === 0) {
       return NextResponse.json(
         { error: 'Failed to analyze any URLs' },
         { status: 500 }
       );
     }
-    
+
     // Calculate domain average for main URLs
     const mainScores = mainUrlResults.map(r => r.analysis.scores);
     const mainDomainAverage = calculateAverageScores(mainScores);
-    
+
     // Analyze competitor domains
     const competitorResults = await Promise.all(
       competitorData.map(async (comp) => {
@@ -139,12 +141,12 @@ export async function POST(request: NextRequest) {
             }
           })
         ).then(results => results.filter(Boolean) as { url: string; analysis: any }[]);
-        
+
         if (compUrlResults.length === 0) return null;
-        
+
         const compScores = compUrlResults.map(r => r.analysis.scores);
         const compAverage = calculateAverageScores(compScores);
-        
+
         return {
           name: comp.name,
           urls: comp.urls,
@@ -158,14 +160,14 @@ export async function POST(request: NextRequest) {
         };
       })
     ).then(results => results.filter(Boolean) as any[]);
-    
+
     // Generate recommendations based on first URL (or aggregate)
     const recommendations = generateRecommendations(
       mainDomainAverage,
       mainUrlResults[0].analysis.scraping,
       mainUrlResults[0].analysis.pagespeed
     );
-    
+
     // Calculate comparison if competitors exist
     let comparison = null;
     if (competitorResults.length > 0) {
@@ -174,13 +176,13 @@ export async function POST(request: NextRequest) {
         competitorResults.map(c => c.averageScore)
       );
     }
-    
+
     const scoreLabel = getScoreLabel(mainDomainAverage.total);
     console.log(`✨ Scan complete! Average Score: ${mainDomainAverage.total}/100`);
-    
+
     // Generate a simple ID for the result
     const scanId = `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     return NextResponse.json({
       success: true,
       scanId,
@@ -217,7 +219,7 @@ export async function POST(request: NextRequest) {
         keywords: mainUrlResults[0].analysis.keywords
       }
     });
-    
+
   } catch (error: any) {
     console.error('Scan error:', error);
     return NextResponse.json(
@@ -228,32 +230,47 @@ export async function POST(request: NextRequest) {
 }
 
 async function analyzeUrl(url: string) {
+  const apiStatus = getAPIStatus();
   console.log(`📊 Analyzing: ${url}`);
-  console.log(`📡 DataForSEO: ${isDataForSEOConfigured() ? 'Configured ✓' : 'Not configured (using estimates)'}`);
-  
-  // Run scraping, PageSpeed, Moz, and DataForSEO in parallel
-  const [scrapingData, pagespeedData, mozData, keywordData] = await Promise.all([
+  console.log(`📡 API Status: Ahrefs=${apiStatus.ahrefs}, DataForSEO=${apiStatus.dataforseo}, Moz=${apiStatus.moz}`);
+
+  // Run scraping, PageSpeed, and unified SEO data collection in parallel
+  const [scrapingData, pagespeedData, baseMozData, unifiedSEO] = await Promise.all([
     scrapeWebsite(url),
     analyzePageSpeed(url),
     getMozMetrics(url),
-    isDataForSEOConfigured() ? getDomainKeywords(url) : Promise.resolve(undefined)
+    getUnifiedSEOMetrics(url) // Cascading: Ahrefs → DataForSEO → Moz → Estimates
   ]);
-  
-  // Calculate scores using all available data
-  const scores = calculateTotalScore(scrapingData, pagespeedData, mozData, keywordData);
-  
+
+  console.log(`📈 Data Sources: Keywords from ${unifiedSEO.source.keywords}, Backlinks from ${unifiedSEO.source.backlinks}`);
+
+  if (unifiedSEO.errors.length > 0) {
+    console.log(`⚠️ API Errors: ${unifiedSEO.errors.join(', ')}`);
+  }
+
+  // Convert unified metrics to scoring format
+  const keywordData = toKeywordMetrics(unifiedSEO);
+  const enhancedMozData = toMozMetrics(unifiedSEO, baseMozData);
+
+  // Calculate scores
+  const scores = calculateTotalScore(scrapingData, pagespeedData, enhancedMozData, keywordData);
+
   return {
     scraping: scrapingData,
     pagespeed: pagespeedData,
-    moz: mozData,
+    moz: enhancedMozData,
     keywords: keywordData,
+    seoMetrics: {
+      ...unifiedSEO,
+      apiStatus
+    },
     scores
   };
 }
 
 function generateRecommendations(scores: DetailedScores, scraping: any, pagespeed: any) {
   const recommendations: any[] = [];
-  
+
   // Content Structure recommendations
   if (!scraping.hasSchema) {
     recommendations.push({
@@ -264,7 +281,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'High - Improves AI readability by 30%'
     });
   }
-  
+
   if (scraping.tableCount < 2) {
     recommendations.push({
       pillar: 'contentStructure',
@@ -274,7 +291,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'Medium - Better featured snippet opportunities'
     });
   }
-  
+
   if (scraping.h1.length === 0) {
     recommendations.push({
       pillar: 'contentStructure',
@@ -284,7 +301,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'High - Critical for SEO and accessibility'
     });
   }
-  
+
   if (scraping.videoCount === 0) {
     recommendations.push({
       pillar: 'contentStructure',
@@ -294,7 +311,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'Low - Enhances user engagement'
     });
   }
-  
+
   // Brand Ranking recommendations
   if (pagespeed.lcpCategory !== 'GOOD') {
     recommendations.push({
@@ -305,7 +322,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'High - Critical Core Web Vital'
     });
   }
-  
+
   if (pagespeed.clsCategory !== 'GOOD') {
     recommendations.push({
       pillar: 'brandRanking',
@@ -315,7 +332,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'High - Critical Core Web Vital'
     });
   }
-  
+
   if (!scraping.hasSSL) {
     recommendations.push({
       pillar: 'brandRanking',
@@ -325,7 +342,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'High - Security and ranking factor'
     });
   }
-  
+
   if (pagespeed.mobileScore < 70) {
     recommendations.push({
       pillar: 'brandRanking',
@@ -335,7 +352,7 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'Medium - Mobile-first indexing'
     });
   }
-  
+
   // AI Trust recommendations
   if (scraping.externalLinks < 3) {
     recommendations.push({
@@ -346,11 +363,11 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'Medium - Improves E-E-A-T signals'
     });
   }
-  
-  const hasAuthor = scraping.schemaTypes?.some((t: string) => 
+
+  const hasAuthor = scraping.schemaTypes?.some((t: string) =>
     t.includes('Person') || t.includes('Author')
   );
-  
+
   if (!hasAuthor) {
     recommendations.push({
       pillar: 'aiTrust',
@@ -360,11 +377,11 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
       impact: 'Medium - Enhances E-E-A-T'
     });
   }
-  
+
   // Sort by priority
   const priorityOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
   recommendations.sort((a, b) => priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder]);
-  
+
   return recommendations;
 }
 
@@ -372,27 +389,29 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const scanId = searchParams.get('id');
-  
+
   if (scanId) {
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'Scan results are not persisted in this version.',
-      scanId 
+      scanId
     });
   }
-  
-  return NextResponse.json({ 
+
+  return NextResponse.json({
     status: 'ok',
     message: 'Scan API is running. POST URL(s) to analyze.',
-    mozConfigured: isMozConfigured(),
+    mozConfigured: getAPIStatus().moz,
+    apiStatus: getAPIStatus(),
     dataSources: {
       scraping: 'Active - HTML content analysis',
       pagespeed: 'Active - Google PageSpeed Insights',
-      moz: isMozConfigured() ? 'Active - Domain Authority, Backlinks' : 'Not configured - Set MOZ_API_TOKEN'
+      moz: getAPIStatus().moz ? 'Active - Domain Authority, Backlinks' : 'Not configured - Set MOZ_API_TOKEN',
+      ahrefs: getAPIStatus().ahrefs ? 'Active - Keywords, Backlinks' : 'Not configured (fallbacks used)',
+      dataforseo: getAPIStatus().dataforseo ? 'Active - Keyword rankings' : 'Not configured'
     },
-    example: { 
+    example: {
       url: 'https://example.com',
-      // Or for batch: urls: ['url1', 'url2', ...],
-      competitors: [] 
+      competitors: []
     }
   });
 }

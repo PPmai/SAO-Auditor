@@ -20,6 +20,8 @@ export interface ScrapingResult {
   externalLinks: number;
   hasSSL: boolean;
   hasRobotsTxt: boolean;
+  hasLlmsTxt: boolean;    // NEW: /llms.txt detection
+  sitemapValid: boolean;  // NEW: sitemap.xml validation
   wordCount: number;
   error?: string;
 }
@@ -28,10 +30,10 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
   try {
     // Normalize URL
     const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
-    
+
     // Check SSL
     const hasSSL = normalizedUrl.startsWith('https://');
-    
+
     // Fetch HTML
     const response = await axios.get(normalizedUrl, {
       headers: {
@@ -43,27 +45,27 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
         rejectUnauthorized: false // For MVP, accept self-signed certs
       })
     });
-    
+
     const html = response.data;
     const $ = cheerio.load(html);
-    
+
     // Extract title
     const title = $('title').text() || $('meta[property="og:title"]').attr('content');
-    
+
     // Extract meta description
-    const metaDescription = $('meta[name="description"]').attr('content') || 
-                           $('meta[property="og:description"]').attr('content');
-    
+    const metaDescription = $('meta[name="description"]').attr('content') ||
+      $('meta[property="og:description"]').attr('content');
+
     // Extract headings
     const h1 = $('h1').map((_, el) => $(el).text().trim()).get();
     const h2 = $('h2').map((_, el) => $(el).text().trim()).get();
     const h3 = $('h3').map((_, el) => $(el).text().trim()).get();
-    
+
     // Check for Schema.org JSON-LD
     const schemaScripts = $('script[type="application/ld+json"]').toArray();
     const schemaTypes: string[] = [];
     let hasSchema = false;
-    
+
     schemaScripts.forEach(script => {
       try {
         const schemaData = JSON.parse($(script).html() || '{}');
@@ -75,23 +77,23 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
         // Invalid JSON, skip
       }
     });
-    
+
     // Count tables and lists
     const tableCount = $('table').length;
     const listCount = $('ul, ol').length;
-    
+
     // Count images
     const imageCount = $('img').length;
     const imagesWithAlt = $('img[alt]').length;
-    
+
     // Count videos
     const videoCount = $('video').length + $('iframe[src*="youtube"], iframe[src*="vimeo"]').length;
-    
+
     // Count links
     const domain = new URL(normalizedUrl).hostname;
     let internalLinks = 0;
     let externalLinks = 0;
-    
+
     $('a[href]').each((_, el) => {
       const href = $(el).attr('href') || '';
       if (href.startsWith('/') || href.includes(domain)) {
@@ -100,11 +102,11 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
         externalLinks++;
       }
     });
-    
+
     // Word count (rough estimate)
     const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
     const wordCount = bodyText.split(' ').length;
-    
+
     // Check robots.txt
     let hasRobotsTxt = false;
     try {
@@ -114,7 +116,31 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
     } catch (e) {
       hasRobotsTxt = false;
     }
-    
+
+    // Check llms.txt
+    let hasLlmsTxt = false;
+    try {
+      const origin = new URL(normalizedUrl).origin;
+      for (const path of ['/llms.txt', '/llms-full.txt']) {
+        const resp = await axios.head(origin + path, { timeout: 3000 });
+        if (resp.status === 200) { hasLlmsTxt = true; break; }
+      }
+    } catch (e) { hasLlmsTxt = false; }
+
+    // Check sitemap.xml validity - Less strict: only require urlset + loc
+    let sitemapValid = false;
+    try {
+      const sitemapUrl = new URL(normalizedUrl).origin + '/sitemap.xml';
+      const sitemapResp = await axios.get(sitemapUrl, { timeout: 5000 });
+      if (sitemapResp.status === 200) {
+        const xml = sitemapResp.data;
+        // Basic validation: must have urlset/sitemapindex and loc
+        const hasUrlset = xml.includes('<urlset') || xml.includes('<sitemapindex');
+        const hasLoc = xml.includes('<loc>');
+        sitemapValid = hasUrlset && hasLoc;
+      }
+    } catch (e) { sitemapValid = false; }
+
     return {
       url: normalizedUrl,
       title,
@@ -133,6 +159,8 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
       externalLinks,
       hasSSL,
       hasRobotsTxt,
+      hasLlmsTxt,
+      sitemapValid,
       wordCount
     };
   } catch (error: any) {
@@ -152,6 +180,8 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
       externalLinks: 0,
       hasSSL: false,
       hasRobotsTxt: false,
+      hasLlmsTxt: false,
+      sitemapValid: false,
       wordCount: 0,
       error: error.message
     };

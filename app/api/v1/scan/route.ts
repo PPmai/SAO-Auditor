@@ -127,7 +127,6 @@ export async function POST(request: NextRequest) {
         aiTrustScore: scores.aiTrust,
         scrapingData: scrapingData as any,
         pagespeedData: pagespeedData as any,
-        semrushData: semrushData as any,
         scoreBreakdown: scores.breakdown as any,
       },
     });

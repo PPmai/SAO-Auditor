@@ -1,4 +1,6 @@
-// schema.prisma - Commercial Version
+// schema.prisma - SAO Auditor Database Schema
+// Updated: December 2024
+// 5-Pillar Scoring System (100 pts)
 
 generator client {
   provider = "prisma-client-js"
@@ -14,76 +16,84 @@ datasource db {
 // ============================================
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  passwordHash  String?   // For email/password auth
-  avatarUrl     String?
-  
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String?
+  passwordHash String? // For email/password auth
+  avatarUrl    String?
+
   // Subscription
-  tier          Tier      @default(FREE)
-  stripeCustomerId String? @unique
+  tier                 Tier    @default(FREE)
+  stripeCustomerId     String? @unique
   stripeSubscriptionId String?
-  
+
   // Usage Tracking
-  scansToday    Int       @default(0)
-  lastScanDate  DateTime?
-  totalScans    Int       @default(0)
-  
+  scansToday   Int       @default(0)
+  lastScanDate DateTime?
+  totalScans   Int       @default(0)
+
   // API Access (Agency tier)
-  apiKey        String?   @unique
+  apiKey          String?   @unique
   apiKeyCreatedAt DateTime?
-  
+
   // Relations
-  scans         Scan[]
-  
+  scans        Scan[]
+  reports      Report[]
+  subscription Subscription?
+
   // Timestamps
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Tier {
-  FREE      // 3 scans/day, no competitors
-  PRO       // Unlimited scans, 4 competitors, PDF, history
-  AGENCY    // API access, white-label
+  FREE // 3 scans/day, no competitors
+  PRO // Unlimited scans, 4 competitors, PDF, history
+  AGENCY // API access, white-label
 }
 
 // ============================================
-// SCAN & ANALYSIS
+// SCAN & ANALYSIS (5-Pillar Scoring)
 // ============================================
 
 model Scan {
-  id           String     @id @default(cuid())
-  url          String
-  status       ScanStatus @default(PENDING)
-  
-  // Scores (0-100)
-  totalScore            Int?
-  contentStructureScore Int?
-  brandRankingScore     Int?
-  keywordVisibilityScore Int?
-  aiTrustScore          Int?
-  
-  // Raw Data (JSON)
-  semrushData   Json?
-  pagespeedData Json?
-  claudeData    Json?
-  scrapingData  Json?
-  
-  // Detailed Breakdown
-  scoreBreakdown Json?
-  
+  id     String     @id @default(cuid())
+  url    String
+  status ScanStatus @default(PENDING)
+
+  // 5-Pillar Scores (Direct 100-point system)
+  totalScore             Int? // 0-100
+  contentStructureScore  Int? // 0-28
+  brandRankingScore      Int? // 0-9
+  websiteTechnicalScore  Int? // 0-17  (NEW)
+  keywordVisibilityScore Int? // 0-23
+  aiTrustScore           Int? // 0-23
+
+  // Raw API Data (JSON) - For debugging/reprocessing
+  scrapingData   Json?
+  pagespeedData  Json?
+  mozData        Json?
+  ahrefsData     Json?
+  dataForSeoData Json?
+  geminiData     Json?
+
+  // Detailed Score Breakdown (JSON)
+  scoreBreakdown Json? // Contains all metric details
+
+  // API Source Tracking
+  apiSources Json? // { keywords: 'ahrefs', backlinks: 'moz', ... }
+
   // Relations
-  userId        String?
-  user          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  competitors   Competitor[]
+  userId          String?
+  user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  competitors     Competitor[]
   recommendations Recommendation[]
-  
+  metrics         ScanMetrics?
+
   // Timestamps
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  // Indexing for queries
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
   @@index([createdAt])
   @@index([url])
@@ -97,29 +107,88 @@ enum ScanStatus {
 }
 
 // ============================================
+// DETAILED METRICS (Normalized storage)
+// ============================================
+
+model ScanMetrics {
+  id     String @id @default(cuid())
+  scanId String @unique
+  scan   Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  // Content Structure Metrics
+  hasSchema          Boolean  @default(false)
+  schemaTypes        String[] // ['Organization', 'FAQ', 'HowTo']
+  headingH1Count     Int?
+  hasProperHierarchy Boolean  @default(false)
+  tableCount         Int?
+  listCount          Int?
+  imageCount         Int?
+  imagesWithAlt      Int?
+  videoCount         Int?
+  wordCount          Int?
+
+  // Technical Metrics
+  lcp             Float? // seconds
+  inp             Float? // milliseconds
+  cls             Float?
+  mobileScore     Int? // 0-100
+  hasSSL          Boolean @default(true)
+  hasRobotsTxt    Boolean @default(false)
+  hasSitemap      Boolean @default(false)
+  hasLlmsTxt      Boolean @default(false)
+  brokenLinkCount Int?
+
+  // Keyword Metrics
+  totalKeywords    Int?
+  keywordsTop10    Int?
+  keywordsTop100   Int?
+  avgPosition      Float?
+  estimatedTraffic Int?
+
+  // Backlink Metrics
+  backlinks        Int?
+  referringDomains Int?
+  domainAuthority  Int?
+  domainRating     Int?
+
+  // AI Trust Metrics
+  hasAuthor        Boolean @default(false)
+  hasAuthorSchema  Boolean @default(false)
+  hasAuthorBio     Boolean @default(false)
+  hasCitations     Boolean @default(false)
+  hasPublishedDate Boolean @default(false)
+  hasLocalSchema   Boolean @default(false)
+  sentiment        String? // 'positive', 'neutral', 'negative'
+
+  createdAt DateTime @default(now())
+}
+
+// ============================================
 // COMPETITOR ANALYSIS
 // ============================================
 
 model Competitor {
-  id        String   @id @default(cuid())
-  url       String
-  scanId    String
-  scan      Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  
-  // Scores
-  totalScore            Int?
-  contentStructureScore Int?
-  brandRankingScore     Int?
+  id     String  @id @default(cuid())
+  name   String? // Competitor name/label
+  url    String
+  scanId String
+  scan   Scan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  // 5-Pillar Scores
+  totalScore             Int?
+  contentStructureScore  Int?
+  brandRankingScore      Int?
+  websiteTechnicalScore  Int?
   keywordVisibilityScore Int?
-  aiTrustScore          Int?
-  
+  aiTrustScore           Int?
+
   // Raw Data
-  rawData       Json?
+  rawData        Json?
   scoreBreakdown Json?
-  
+
   // Timestamps
-  createdAt     DateTime @default(now())
-  
+  createdAt DateTime @default(now())
+
   @@index([scanId])
 }
 
@@ -128,20 +197,35 @@ model Competitor {
 // ============================================
 
 model Recommendation {
-  id          String   @id @default(cuid())
-  scanId      String
-  scan        Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  
-  pillar      String   // contentStructure, brandRanking, keywordVisibility, aiTrust
+  id     String @id @default(cuid())
+  scanId String
+  scan   Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  // 5 Pillars
+  pillar      Pillar
   priority    Priority
   title       String
   description String
-  impact      String   // High, Medium, Low
-  
-  // Optional: link to specific metric
-  metric      String?
-  
+  impact      String // High, Medium, Low
+
+  // Optional: specific metric reference
+  metric       String?
+  currentValue String?
+  targetValue  String?
+
+  // Status tracking
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+
   @@index([scanId])
+}
+
+enum Pillar {
+  CONTENT_STRUCTURE
+  BRAND_RANKING
+  WEBSITE_TECHNICAL
+  KEYWORD_VISIBILITY
+  AI_TRUST
 }
 
 enum Priority {
@@ -151,21 +235,30 @@ enum Priority {
 }
 
 // ============================================
-// API USAGE TRACKING (Agency tier)
+// API USAGE TRACKING
 // ============================================
 
 model ApiUsage {
-  id        String   @id @default(cuid())
-  apiKey    String
-  endpoint  String
-  method    String
-  statusCode Int
-  responseTime Int   // in ms
-  
+  id     String  @id @default(cuid())
+  userId String?
+  apiKey String?
+
+  // Request Info
+  endpoint     String
+  method       String
+  statusCode   Int
+  responseTime Int // in ms
+
+  // API Service Used
+  apiService String? // 'ahrefs', 'moz', 'dataforseo', 'pagespeed', 'gemini'
+  credits    Int? // Credits/units consumed
+
   createdAt DateTime @default(now())
-  
+
+  @@index([userId])
   @@index([apiKey])
   @@index([createdAt])
+  @@index([apiService])
 }
 
 // ============================================
@@ -173,18 +266,20 @@ model ApiUsage {
 // ============================================
 
 model Subscription {
-  id                   String   @id @default(cuid())
-  userId               String   @unique
-  stripeSubscriptionId String   @unique
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  stripeSubscriptionId String             @unique
   stripePriceId        String
   status               SubscriptionStatus
   currentPeriodStart   DateTime
   currentPeriodEnd     DateTime
-  cancelAtPeriodEnd    Boolean  @default(false)
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  
+  cancelAtPeriodEnd    Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
 }
 
@@ -201,15 +296,22 @@ enum SubscriptionStatus {
 // ============================================
 
 model Report {
-  id        String   @id @default(cuid())
-  scanId    String
-  userId    String
-  type      ReportType
-  url       String?  // S3/Storage URL for PDF
-  
-  createdAt DateTime @default(now())
+  id     String @id @default(cuid())
+  scanId String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type ReportType
+  url  String? // S3/Storage URL for file
+
+  // White-label options (Agency tier)
+  brandLogo  String?
+  brandName  String?
+  brandColor String?
+
+  createdAt DateTime  @default(now())
   expiresAt DateTime?
-  
+
   @@index([userId])
   @@index([scanId])
 }
@@ -218,4 +320,60 @@ enum ReportType {
   PDF
   CSV
   JSON
+}
+
+// ============================================
+// INTERNAL ADMIN (for /internal dashboard)
+// ============================================
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         AdminRole @default(VIEWER)
+
+  createdAt   DateTime  @default(now())
+  lastLoginAt DateTime?
+}
+
+enum AdminRole {
+  VIEWER
+  EDITOR
+  ADMIN
+}
+
+// ============================================
+// BATCH SCAN JOBS (for internal)
+// ============================================
+
+model BatchJob {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  status      BatchStatus @default(PENDING)
+
+  // URLs to scan
+  urls          String[]
+  totalUrls     Int
+  completedUrls Int      @default(0)
+  failedUrls    Int      @default(0)
+
+  // Results
+  results Json?
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdBy String? // Admin user
+}
+
+enum BatchStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

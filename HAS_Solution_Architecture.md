@@ -126,26 +126,72 @@
 
 ## 4. API Integration Plan <a name="api-integration-plan"></a>
 
-### 4.1 Semrush API
-**Subscription Required:** Business Plan ($499.95/mo) + API Units
+### 4.0 API Manager - Cascading Fallback System
 
-| Endpoint | Purpose | Metrics | Units/Request |
-|----------|---------|---------|---------------|
-| `domain_ranks` | Domain Overview | Authority Score, Traffic | 10 |
-| `domain_organic` | Organic Keywords | Top keywords, positions, **AI Overview features** | 10/keyword |
-| `backlinks_overview` | Backlink Summary | Total backlinks, referring domains | 40 |
-| `backlinks` | Backlink Details | DR, anchor texts | 40/row |
-| `domain_organic_organic` | Competitors | Competing domains | 10 |
-| `position_tracking` | AI Visibility | **Track "AI Overview" SERP feature presence** | Varies |
+**Architecture:** Priority-based failover for SEO data collection
 
-**Estimated Usage per Scan (1 URL + 4 competitors = 5 URLs):**
-- Domain Overview: 5 × 10 = 50 units
-- Top 10 Keywords: 5 × 100 = 500 units
-- Backlinks Overview: 5 × 40 = 200 units
-- **Total per scan: ~750 units**
-- **100 scans/month: ~75,000 units ($3.75)**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      API MANAGER                                     │
+│                (lib/modules/api-manager.ts)                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   KEYWORDS DATA             BACKLINKS DATA                          │
+│   ┌─────────────┐           ┌─────────────┐                        │
+│   │  1. Ahrefs  │           │  1. Ahrefs  │  ← Best data quality   │
+│   └──────┬──────┘           └──────┬──────┘                        │
+│          ↓ (if fail)               ↓ (if fail)                      │
+│   ┌─────────────┐           ┌─────────────┐                        │
+│   │ 2. DataFor  │           │   2. Moz    │  ← Free tier available │
+│   │    SEO      │           └──────┬──────┘                        │
+│   └──────┬──────┘                  ↓ (if fail)                      │
+│          ↓ (if fail)         ┌─────────────┐                        │
+│   ┌─────────────┐           │ 3. Estimate │                        │
+│   │ 3. Estimate │           └─────────────┘                        │
+│   └─────────────┘                                                   │
+│                                                                     │
+│   OUTPUT: Unified SEO Metrics with source tracking                 │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### 4.2 Google PageSpeed Insights API (FREE)
+**Fallback Priority:**
+| Priority | API | Data Provided | Status |
+|----------|-----|---------------|--------|
+| 1 | Ahrefs | Keywords, Positions, Traffic, Backlinks, DR | Requires paid plan with API access |
+| 2 | DataForSEO | Keywords, Positions, Traffic | ~$50/month pay-per-use |
+| 3 | Moz | DA, PA, Backlinks, Referring Domains | Free tier: 10 queries/month |
+| 4 | Estimates | Basic estimates based on domain | Always available |
+
+### 4.1 Ahrefs API (Primary - Optional)
+**Subscription Required:** API access plan ($199+/mo)
+
+| Endpoint | Purpose | Metrics |
+|----------|---------|---------|
+| `site-explorer/organic-keywords` | Organic Keywords | Keywords, positions, traffic |
+| `site-explorer/backlinks-stats` | Backlink Summary | Total backlinks, referring domains, DR |
+
+**Note:** Falls back to alternatives if plan doesn't include API access.
+
+### 4.2 DataForSEO API (Fallback for Keywords)
+**Subscription:** Pay-per-use (~$50/mo for 100 scans)
+
+| Endpoint | Purpose | Metrics |
+|----------|---------|---------|
+| `serp/google/organic` | Keyword Rankings | Positions, traffic estimates |
+| `domain_analytics` | Domain Overview | Keyword count, traffic |
+
+### 4.3 Moz API (Fallback for Backlinks)
+**Subscription:** Free tier available (10 queries/month)
+
+| Metric | Source | Limits |
+|--------|--------|--------|
+| Domain Authority (DA) | Link Explorer | Free: 10/month |
+| Page Authority (PA) | Link Explorer | Free: 10/month |
+| Linking Domains | Link Explorer | Free: 10/month |
+| Inbound Links | Link Explorer | Free: 10/month |
+
+### 4.4 Google PageSpeed Insights API (FREE)
 **Endpoint:** `https://www.googleapis.com/pagespeedonline/v5/runPagespeed`
 
 | Metric | Source | Scoring |
@@ -154,13 +200,11 @@
 | INP (Interaction to Next Paint) | Lighthouse | Good < 200ms |
 | CLS (Cumulative Layout Shift) | Lighthouse | Good < 0.1 |
 | Performance Score | Lighthouse | 0-100 |
-| Accessibility Score | Lighthouse | 0-100 |
-| SEO Score | Lighthouse | 0-100 |
 
-**Rate Limit:** 25,000 queries/day (more than enough!)
+**Rate Limit:** 25,000 queries/day (FREE)
 
-### 4.3 Claude API (Anthropic)
-**Model:** claude-3-5-sonnet (cost-effective)
+### 4.5 Gemini API (For Sentiment Analysis)
+**Model:** gemini-1.5-flash (cost-effective)
 
 | Task | Purpose | Est. Tokens |
 |------|---------|-------------|
@@ -168,13 +212,7 @@
 | Content Quality | E-E-A-T evaluation | ~1,500 |
 | Recommendations | Generate action items | ~2,000 |
 
-**Estimated Cost:**
-- Input: $3/million tokens
-- Output: $15/million tokens
-- Per scan: ~$0.05
-- 100 scans/month: ~$5
-
-### 4.4 HTML Scraping (FREE)
+### 4.6 HTML Scraping (FREE)
 **Tools:** Cheerio (static) + Puppeteer (dynamic)
 
 | Data Point | Method | Selector |
