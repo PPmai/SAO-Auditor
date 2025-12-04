@@ -347,7 +347,15 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
     if (!breakdown) return null;
     const metric = breakdown[metricKey as keyof typeof breakdown];
     if (!metric) return null;
-    const currentScore = typeof metric === 'object' && 'score' in metric ? metric.score : (typeof metric === 'number' ? metric : 0);
+    
+    // Type guard to check if metric has score property
+    let currentScore = 0;
+    if (typeof metric === 'number') {
+      currentScore = metric;
+    } else if (typeof metric === 'object' && metric !== null && 'score' in metric) {
+      currentScore = (metric as { score: number }).score;
+    }
+    
     const pointsLost = Math.max(0, maxScore - currentScore);
     return { currentScore, maxScore, pointsLost };
   };
