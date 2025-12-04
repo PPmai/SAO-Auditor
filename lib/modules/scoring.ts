@@ -4,39 +4,48 @@ import { MozMetrics, mozMetricsToScores } from './moz';
 import { DomainKeywordMetrics, keywordMetricsToScores } from './dataforseo';
 import { GSCMetrics, gscMetricsToScores } from './google-search-console';
 
+// New 5-pillar structure (108 pts total, normalized to 100)
 export interface PillarScores {
-  contentStructure: number;
-  brandRanking: number;
-  keywordVisibility: number;
-  aiTrust: number;
+  contentStructure: number;   // 30 pts
+  brandRanking: number;       // 10 pts (was combined with technical)
+  websiteTechnical: number;   // 18 pts (NEW - separated from brand)
+  keywordVisibility: number;  // 25 pts
+  aiTrust: number;            // 25 pts
 }
 
 export interface MetricDetail {
   score: number;
-  value?: string | number; // e.g., "7 Lists", "2.4s"
+  value?: string | number;
   insight?: string;
   recommendation?: string;
 }
 
 export interface DetailedScores extends PillarScores {
-  total: number;
+  total: number;              // Normalized to 100
+  rawTotal: number;           // Raw 108
   breakdown: {
     contentStructure: {
       schema: MetricDetail;
-      tableLists: MetricDetail;
       headings: MetricDetail;
       multimodal: MetricDetail;
+      imageAlt: MetricDetail;       // NEW
+      tableLists: MetricDetail;
       directAnswer: MetricDetail;
       contentGap: MetricDetail;
     };
     brandRanking: {
+      brandSearch: MetricDetail;
+      brandSentiment: MetricDetail; // NEW
+    };
+    websiteTechnical: {             // NEW pillar
       lcp: MetricDetail;
-      fid: MetricDetail;
+      inp: MetricDetail;
       cls: MetricDetail;
       mobile: MetricDetail;
       ssl: MetricDetail;
       brokenLinks: MetricDetail;
-      brandSearch: MetricDetail;
+      llmsTxt: MetricDetail;        // NEW
+      sitemap: MetricDetail;        // NEW
     };
     keywordVisibility: {
       keywords: MetricDetail;
@@ -57,6 +66,8 @@ export interface DetailedScores extends PillarScores {
     gsc: boolean;
     pagespeed: boolean;
     scraping: boolean;
+    ahrefs: boolean;    // NEW
+    gemini: boolean;    // NEW
   };
 }
 
@@ -199,90 +210,153 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
     multimodalScore + directAnswerScore + contentGapScore
   ));
 
+  // Image ALT scoring (3 pts) - NEW
+  // Checks images >200px, excludes logos/social icons
+  // TODO: Implement proper image analysis
+  const imageAltScore = 0; // Placeholder until image analysis is implemented
+  const imageAltValue = 'Pending analysis';
+
   return {
     score: total,
     breakdown: {
       schema: { score: schemaScore, value: scraping.schemaTypes.join(', ') || 'None', insight: schemaInsight, recommendation: schemaRec },
-      tableLists: { score: tableListScore, value: tableListValue, insight: tableListInsight, recommendation: tableListRec },
       headings: { score: headingScore, value: headingValue, insight: headingInsight, recommendation: headingRec },
       multimodal: { score: multimodalScore, value: multimodalValue },
+      imageAlt: { score: imageAltScore, value: imageAltValue }, // NEW
+      tableLists: { score: tableListScore, value: tableListValue, insight: tableListInsight, recommendation: tableListRec },
       directAnswer: { score: directAnswerScore, value: directAnswerScore === 3 ? 'Present' : 'Missing' },
       contentGap: { score: contentGapScore, value: `${scraping.wordCount} words` }
     }
   };
 }
 
+// PILLAR 2: Brand Ranking (10 points)
+// - brandSearch: 5 pts
+// - brandSentiment: 5 pts
 export function calculateBrandRankingScore(
   scraping: ScrapingResult,
-  pagespeed: PageSpeedResult,
-  mozMetrics?: MozMetrics
+  // TODO: Add Ahrefs data for brand search
+  // TODO: Add Gemini sentiment data
 ): {
   score: number;
   breakdown: DetailedScores['breakdown']['brandRanking'];
 } {
+  // Brand Search Score (5 points)
+  // TODO: Implement with Ahrefs API - search for brand name keyword
+  // - Rank 1 = 5 points
+  // - Rank 2-3 = 3 points
+  // - Rank 4-10 = 1.5 points
+  // - Not in top 10 = 0 points
+  const brandSearchScore = 0; // Pending Ahrefs API
+
+  // Brand Sentiment Score (5 points)
+  // TODO: Implement with Gemini Deep Research
+  // - 2+ community positive = 5 pts
+  // - 1 community pos + PR = 4 pts
+  // - Neutral/Mixed = 2.5 pts
+  // - PR only = 2 pts
+  // - 1 community negative = 1 pt
+  // - 2+ community negative = 0 pts (OVERRIDE)
+  const brandSentimentScore = 0; // Pending Gemini API
+
+  const total = Math.round(brandSearchScore + brandSentimentScore);
+
+  return {
+    score: total,
+    breakdown: {
+      brandSearch: {
+        score: brandSearchScore,
+        value: 'Pending API',
+        insight: 'Waiting for Ahrefs API to check brand keyword ranking'
+      },
+      brandSentiment: {
+        score: brandSentimentScore,
+        value: 'Pending API',
+        insight: 'Waiting for Gemini API to analyze community sentiment'
+      }
+    }
+  };
+}
+
+// PILLAR 3: Website Technical (18 points)
+// - LCP: 3 pts (<5s = 3, 5-7s = 1.5, >7s = 0)
+// - INP: 1 pt (≤200ms = 1, >200ms = 0)
+// - CLS: 1 pt (0 = 1, >0 = 0)
+// - Mobile: 3 pts
+// - SSL: 3 pts (HTTPS = 3, No HTTPS = 0)
+// - Broken Links: 2 pts
+// - LLMs.txt: 2.5 pts
+// - Sitemap: 2.5 pts (must have ALL required elements)
+export function calculateWebsiteTechnicalScore(
+  scraping: ScrapingResult,
+  pagespeed: PageSpeedResult
+): {
+  score: number;
+  breakdown: DetailedScores['breakdown']['websiteTechnical'];
+} {
   let lcpScore = 0;
-  let fidScore = 0;
+  let inpScore = 0;
   let clsScore = 0;
   let mobileScore = 0;
   let sslScore = 0;
-  let brokenLinksScore = 3.5; // Default to perfect, would need link checker
-  let brandSearchScore = 0; // Default to 0 until API implemented
+  let brokenLinksScore = 2; // Default to good until link checker implemented
+  let llmsTxtScore = 0;
+  let sitemapScore = 0;
 
-  // LCP Score (3 points)
-  if (pagespeed.lcpCategory === 'GOOD') lcpScore = 3;
-  else if (pagespeed.lcpCategory === 'NEEDS_IMPROVEMENT') lcpScore = 1.5;
+  // LCP Score (3 points) - NEW THRESHOLDS
+  // <5s = 3pts, 5-7s = 1.5pts, >7s = 0pts
+  const lcpSeconds = pagespeed.lcp || 0;
+  if (lcpSeconds < 5) lcpScore = 3;
+  else if (lcpSeconds <= 7) lcpScore = 1.5;
+  // else 0
 
-  // INP Score (2 points)
-  if (pagespeed.fidCategory === 'GOOD') fidScore = 2;
-  else if (pagespeed.fidCategory === 'NEEDS_IMPROVEMENT') fidScore = 1;
+  // INP Score (1 point) - SIMPLIFIED
+  // ≤200ms = 1pt, >200ms = 0pts
+  const inpMs = pagespeed.fid || 0; // Using FID as proxy
+  if (inpMs <= 200) inpScore = 1;
+  // else 0
 
-  // CLS Score (2 points)
-  if (pagespeed.clsCategory === 'GOOD') clsScore = 2;
-  else if (pagespeed.clsCategory === 'NEEDS_IMPROVEMENT') clsScore = 1;
+  // CLS Score (1 point) - STRICT
+  // 0 = 1pt, >0 = 0pts
+  if (pagespeed.cls === 0) clsScore = 1;
+  // else 0
 
   // Mobile Score (3 points)
   if (pagespeed.mobileScore >= 90) mobileScore = 3;
-  else if (pagespeed.mobileScore >= 70) mobileScore = 2;
-  else if (pagespeed.mobileScore >= 50) mobileScore = 1;
-  else mobileScore = 0; // <50 = 0 points
+  else if (pagespeed.mobileScore >= 50) mobileScore = 1.5;
 
-  // SSL Score (3 points)
+  // SSL Score (3 points) - SIMPLIFIED
+  // HTTPS = 3pts, No HTTPS = 0pts
   if (scraping.hasSSL) sslScore = 3;
 
-  // Brand Search Score (5 points)
-  // TODO: Implement with Ahrefs API or Semrush API
-  // Logic: Search for brand name keyword and check if domain ranks #1
-  // - Rank 1 = 5 points
-  // - Rank 2-3 = 3 points
-  // - Rank 4-10 = 1 point
-  // - Not in top 10 = 0 points
+  // LLMs.txt Score (2.5 points)
+  // TODO: Check if /llms.txt or /llms-full.txt exists
+  llmsTxtScore = 0; // Placeholder until implemented
 
-  // REMOVED: Domain Authority is NOT a valid measure for Branded Search
-  // if (mozMetrics && mozMetrics.domainAuthority > 0) {
-  //   const mozScores = mozMetricsToScores(mozMetrics);
-  //   brandSearchScore = mozScores.authorityBonus;
-  // }
+  // Sitemap Score (2.5 points)
+  // TODO: Must have ALL required elements: urlset, loc, lastmod, changefreq, priority
+  sitemapScore = 0; // Placeholder until implemented
 
-  brandSearchScore = 0; // Default until Ahrefs/Semrush API is implemented
-
-  const total = Math.min(20, Math.round(
-    lcpScore + fidScore + clsScore + mobileScore +
-    sslScore + brokenLinksScore + brandSearchScore
-  ));
+  const total = Math.round(
+    lcpScore + inpScore + clsScore + mobileScore +
+    sslScore + brokenLinksScore + llmsTxtScore + sitemapScore
+  );
 
   return {
     score: total,
     breakdown: {
       lcp: { score: lcpScore, value: `${pagespeed.lcp?.toFixed(2)}s` },
-      fid: { score: fidScore, value: `${pagespeed.fid?.toFixed(0)}ms` },
-      cls: { score: clsScore, value: pagespeed.cls?.toFixed(3) },
+      inp: { score: inpScore, value: `${pagespeed.fid?.toFixed(0)}ms` },
+      cls: { score: clsScore, value: pagespeed.cls?.toFixed(3) || '0' },
       mobile: { score: mobileScore, value: `${pagespeed.mobileScore}/100` },
-      ssl: { score: sslScore, value: scraping.hasSSL ? 'Valid' : 'Invalid' },
+      ssl: { score: sslScore, value: scraping.hasSSL ? 'HTTPS' : 'No HTTPS' },
       brokenLinks: { score: brokenLinksScore, value: '0 found' },
-      brandSearch: { score: brandSearchScore, value: 'Pending API' }
+      llmsTxt: { score: llmsTxtScore, value: 'Not detected' },
+      sitemap: { score: sitemapScore, value: 'Not checked' }
     }
   };
 }
+
 
 export function calculateKeywordVisibilityScore(
   scraping: ScrapingResult,
@@ -293,10 +367,10 @@ export function calculateKeywordVisibilityScore(
   breakdown: DetailedScores['breakdown']['keywordVisibility'];
   dataSource: 'ahrefs' | 'dataforseo' | 'gsc' | 'estimated';
 } {
-  // NEW PILLAR 3 STRUCTURE (25 pts total):
-  // - Organic Keywords: 12.5 pts (vs SERP benchmark)
+  // PILLAR 4: Keyword Visibility (25 pts total)
+  // - Organic Keywords: 10 pts (vs SERP benchmark)
   // - Avg Position: 7.5 pts
-  // - Search Intent Match: 5 pts
+  // - Search Intent Match: 7.5 pts
 
   let keywordsScore = 0;
   let positionsScore = 0;
@@ -502,26 +576,32 @@ export function calculateTotalScore(
   gscData?: GSCMetrics
 ): DetailedScores {
   const contentStructure = calculateContentStructureScore(scraping);
-  const brandRanking = calculateBrandRankingScore(scraping, pagespeed, mozMetrics);
+  const brandRanking = calculateBrandRankingScore(scraping);
+  const websiteTechnical = calculateWebsiteTechnicalScore(scraping, pagespeed);
   const keywordVisibility = calculateKeywordVisibilityScore(scraping, keywordData, gscData);
   const aiTrust = calculateAITrustScore(scraping, mozMetrics);
 
-  const total = Math.min(100,
-    contentStructure.score +
-    brandRanking.score +
-    keywordVisibility.score +
-    aiTrust.score
-  );
+  // Direct 100-point system (no normalization)
+  // Content: 28, Brand: 9, Technical: 17, Keywords: 23, AI Trust: 23 = 100
+  const total =
+    contentStructure.score +    // 28 pts max
+    brandRanking.score +        // 9 pts max
+    websiteTechnical.score +    // 17 pts max
+    keywordVisibility.score +   // 23 pts max
+    aiTrust.score;              // 23 pts max
 
   return {
     total,
+    rawTotal: total,  // Same as total in direct 100-point system
     contentStructure: contentStructure.score,
     brandRanking: brandRanking.score,
+    websiteTechnical: websiteTechnical.score,
     keywordVisibility: keywordVisibility.score,
     aiTrust: aiTrust.score,
     breakdown: {
       contentStructure: contentStructure.breakdown,
       brandRanking: brandRanking.breakdown,
+      websiteTechnical: websiteTechnical.breakdown,
       keywordVisibility: keywordVisibility.breakdown,
       aiTrust: aiTrust.breakdown
     },
@@ -530,7 +610,9 @@ export function calculateTotalScore(
       dataforseo: keywordVisibility.dataSource === 'dataforseo',
       gsc: keywordVisibility.dataSource === 'gsc',
       pagespeed: true,
-      scraping: true
+      scraping: true,
+      ahrefs: false,   // TODO: Set true when Ahrefs integrated
+      gemini: false    // TODO: Set true when Gemini integrated
     }
   };
 }
@@ -558,7 +640,7 @@ export function compareScores(
   const allScores = [mainScores.total, ...competitorScores.map(c => c.total)].sort((a, b) => b - a);
   const rank = allScores.indexOf(mainScores.total) + 1;
 
-  const pillars = ['contentStructure', 'brandRanking', 'keywordVisibility', 'aiTrust'] as const;
+  const pillars = ['contentStructure', 'brandRanking', 'websiteTechnical', 'keywordVisibility', 'aiTrust'] as const;
   const gaps = pillars.map(pillar => {
     const avgCompetitor = competitorScores.reduce((sum, c) => sum + c[pillar], 0) / competitorScores.length;
     return {
@@ -583,65 +665,42 @@ export function calculateAverageScores(scores: DetailedScores[]): DetailedScores
 
   const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
 
-  // Helper to aggregate insights
-  const aggregateSchemaInsight = () => {
-    const withSchema = scores.filter(s => s.breakdown.contentStructure.schema.score > 0);
-    const percent = (withSchema.length / scores.length) * 100;
-
-    if (percent === 100) return "All pages have valid schema markup. Excellent!";
-    if (percent >= 50) return `Most pages (${Math.round(percent)}%) have schema, but some are missing it.`;
-    return "Most pages are missing schema markup.";
-  };
-
-  const aggregateSchemaRec = () => {
-    const missing = scores.filter(s => s.breakdown.contentStructure.schema.score === 0);
-    if (missing.length === 0) return "Maintain your current schema implementation.";
-    // Find a specific URL that is missing schema (if we had URL info here, but DetailedScores doesn't carry URL. 
-    // We'll assume the caller might handle specific URL mapping, or we just give general advice).
-    return "Prioritize adding schema to pages that scored 0.";
-  };
-
-  const base = scores[0]; // Use first result as template for structure
-
-  // Recalculate averages for all numeric scores
+  const base = scores[0];
   const total = Math.round(avg(scores.map(s => s.total)));
-
-  // Construct the averaged object manually to ensure deep merging of numbers while preserving structure
-  // For MVP, we will just recalculate the top-level scores and key metrics
-  // Note: This is a simplified aggregation. For production, we'd map every single field.
+  const rawTotal = Math.round(avg(scores.map(s => s.rawTotal || s.total)));
 
   return {
     ...base,
     total,
+    rawTotal,
     contentStructure: Math.round(avg(scores.map(s => s.contentStructure))),
     brandRanking: Math.round(avg(scores.map(s => s.brandRanking))),
+    websiteTechnical: Math.round(avg(scores.map(s => s.websiteTechnical || 0))),
     keywordVisibility: Math.round(avg(scores.map(s => s.keywordVisibility))),
     aiTrust: Math.round(avg(scores.map(s => s.aiTrust))),
     breakdown: {
       contentStructure: {
-        schema: {
-          score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.schema.score))),
-          value: `${Math.round(avg(scores.map(s => s.breakdown.contentStructure.schema.score > 0 ? 1 : 0)) * 100)}% Coverage`,
-          insight: aggregateSchemaInsight(),
-          recommendation: aggregateSchemaRec()
-        },
-        tableLists: {
-          score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.tableLists.score))),
-          value: "Avg. " + scores[0].breakdown.contentStructure.tableLists.value // Simplified
-        },
+        schema: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.schema.score))) },
         headings: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.headings.score))) },
         multimodal: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.multimodal.score))) },
+        imageAlt: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.imageAlt?.score || 0))) },
+        tableLists: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.tableLists.score))) },
         directAnswer: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.directAnswer.score))) },
         contentGap: { score: Math.round(avg(scores.map(s => s.breakdown.contentStructure.contentGap.score))) }
       },
       brandRanking: {
-        lcp: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.lcp.score))) },
-        fid: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.fid.score))) },
-        cls: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.cls.score))) },
-        mobile: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.mobile.score))) },
-        ssl: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.ssl.score))) },
-        brokenLinks: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.brokenLinks.score))) },
-        brandSearch: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.brandSearch.score))) }
+        brandSearch: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.brandSearch?.score || 0))) },
+        brandSentiment: { score: Math.round(avg(scores.map(s => s.breakdown.brandRanking.brandSentiment?.score || 0))) }
+      },
+      websiteTechnical: {
+        lcp: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.lcp?.score || 0))) },
+        inp: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.inp?.score || 0))) },
+        cls: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.cls?.score || 0))) },
+        mobile: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.mobile?.score || 0))) },
+        ssl: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.ssl?.score || 0))) },
+        brokenLinks: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.brokenLinks?.score || 0))) },
+        llmsTxt: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.llmsTxt?.score || 0))) },
+        sitemap: { score: Math.round(avg(scores.map(s => s.breakdown.websiteTechnical?.sitemap?.score || 0))) }
       },
       keywordVisibility: {
         keywords: { score: Math.round(avg(scores.map(s => s.breakdown.keywordVisibility.keywords.score))) },

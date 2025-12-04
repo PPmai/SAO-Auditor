@@ -37,90 +37,109 @@ const METRIC_DEFINITIONS: Record<string, { title: string; description: string; t
     tips: 'Cover all aspects of your topic thoroughly. Use tools like "People Also Ask" to find related questions to answer.',
   },
 
-  // Brand Ranking
+  // Website Technical (moved from Brand Ranking)
   lcp: {
     title: 'LCP (Largest Contentful Paint)',
-    description: 'Time it takes for the largest visible element to load. Core Web Vital for perceived load speed.',
-    tips: 'Target: < 2.5 seconds. Optimize images, use CDN, implement lazy loading, and reduce server response time.',
+    description: 'Time it takes for the largest visible element to load.',
+    tips: 'Target: < 5 seconds for full score. Optimize images, use CDN.',
   },
-  fid: {
-    title: 'FID (First Input Delay)',
-    description: 'Time from user interaction to browser response. Measures interactivity.',
-    tips: 'Target: < 100ms. Minimize JavaScript, break up long tasks, and use web workers for heavy computations.',
+  inp: {
+    title: 'INP (Interaction to Next Paint)',
+    description: 'Time from user interaction to browser response.',
+    tips: 'Target: ≤ 200ms. Minimize JavaScript, break up long tasks.',
   },
   cls: {
     title: 'CLS (Cumulative Layout Shift)',
     description: 'Measures visual stability - how much elements shift during page load.',
-    tips: 'Target: < 0.1. Set explicit dimensions for images/videos, reserve space for ads, and avoid inserting content above existing content.',
+    tips: 'Target: 0 for full score. Set explicit dimensions for images/videos.',
   },
   mobile: {
     title: 'Mobile Performance',
-    description: 'How well your site performs on mobile devices (speed, usability, responsiveness).',
-    tips: 'Use responsive design, optimize touch targets (48px minimum), and test with Google\'s Mobile-Friendly Test.',
+    description: 'How well your site performs on mobile devices.',
+    tips: 'Use responsive design, optimize touch targets (48px minimum).',
   },
   ssl: {
     title: 'SSL/HTTPS Security',
     description: 'Secure connection that encrypts data between users and your website.',
-    tips: 'Install an SSL certificate (free via Let\'s Encrypt). HTTPS is a ranking factor and required for many browser features.',
+    tips: 'HTTPS required for full score. Install SSL certificate (free via Let\'s Encrypt).',
   },
   brokenLinks: {
     title: 'Link Health',
-    description: 'Quality of internal and external links - no broken links or redirect chains.',
-    tips: 'Regularly audit links using tools like Screaming Frog. Fix 404 errors and minimize redirect chains.',
+    description: 'Quality of internal and external links - no broken links.',
+    tips: 'Regularly audit links. Fix 404 errors and minimize redirect chains.',
   },
+  llmsTxt: {
+    title: 'LLMs.txt',
+    description: 'AI-friendly file that helps LLM crawlers understand your site.',
+    tips: 'Create /llms.txt or /llms-full.txt at your domain root.',
+  },
+  sitemap: {
+    title: 'Sitemap.xml',
+    description: 'XML sitemap with all required elements for proper indexing.',
+    tips: 'Must include: urlset, loc, lastmod, changefreq, priority.',
+  },
+
+  // Brand Ranking
   brandSearch: {
-    title: 'Brand Search Volume',
-    description: 'How often people search for your brand name directly.',
-    tips: 'Build brand awareness through PR, social media, and consistent branding. High brand search indicates trust and authority.',
+    title: 'Branded Search Rank',
+    description: 'Your ranking for your brand name keyword.',
+    tips: 'Rank #1 for your brand name. Build brand awareness through PR and social.',
+  },
+  brandSentiment: {
+    title: 'Brand Sentiment',
+    description: 'Public sentiment about your brand from community sources.',
+    tips: 'Monitor Pantip, Reddit, reviews. Community sentiment overrides PR.',
   },
 
   // Keyword Visibility
   keywords: {
     title: 'Organic Keywords Count',
     description: 'Number of keywords your site ranks for in search results.',
-    tips: 'Create content targeting relevant keywords. More ranking keywords = more potential traffic sources.',
-  },
-  traffic: {
-    title: 'Organic Traffic',
-    description: 'Estimated monthly visitors from organic search results.',
-    tips: 'Focus on ranking for high-volume keywords. Improve existing rankings from page 2 to page 1 for quick wins.',
+    tips: 'Create content targeting relevant keywords.',
   },
   positions: {
     title: 'Average Position',
     description: 'Average ranking position across all your keywords.',
-    tips: 'Lower is better (position 1 = top). Focus on moving keywords from positions 4-10 to top 3 for significant traffic gains.',
+    tips: 'Lower is better (position 1 = top). Focus on top 10 positions.',
   },
-  trend: {
-    title: 'Trend (Improving/Declining)',
-    description: 'Whether your keyword rankings are improving or declining over time.',
-    tips: 'Monitor ranking changes weekly. Investigate sudden drops (algorithm updates, technical issues, or competitor gains).',
+  intentMatch: {
+    title: 'Search Intent Match',
+    description: 'How well your content matches user search intent.',
+    tips: 'Align content with: Informational, Commercial, Transactional, or Navigational intent.',
   },
 
   // AI Trust
   backlinks: {
     title: 'Backlink Quality',
-    description: 'Links from other websites pointing to yours. Quality matters more than quantity.',
-    tips: 'Focus on earning links from authoritative, relevant sites. Avoid spammy link schemes. Guest posting and PR can help.',
+    description: 'Links from other websites pointing to yours.',
+    tips: 'Focus on earning links from authoritative, relevant sites.',
   },
   referringDomains: {
     title: 'Referring Domains',
-    description: 'Number of unique websites linking to you. Diversity of sources matters.',
-    tips: 'Aim for links from many different domains rather than many links from few domains. This shows broad trust.',
+    description: 'Number of unique websites linking to you.',
+    tips: 'Aim for links from many different domains.',
   },
   sentiment: {
-    title: 'AI Sentiment Score',
-    description: 'How positively AI models perceive and describe your brand/content.',
-    tips: 'Maintain positive reviews, address negative feedback publicly, and create helpful content. AI learns from public sentiment.',
+    title: 'Content Sentiment',
+    description: 'How professional and positive your content tone is.',
+    tips: 'Use professional language. Avoid aggressive sales tactics.',
   },
   eeat: {
     title: 'E-E-A-T Signals',
-    description: 'Experience, Expertise, Authoritativeness, Trustworthiness - Google\'s quality criteria.',
-    tips: 'Add author bios with credentials, cite authoritative sources, display trust badges, and show real-world experience.',
+    description: 'Experience, Expertise, Authoritativeness, Trustworthiness.',
+    tips: 'Show author, bio, credentials, citations, and dates.',
   },
   local: {
     title: 'Local/GEO Signals',
-    description: 'Signals that help you appear in local search and location-based AI results.',
-    tips: 'Claim Google Business Profile, add LocalBusiness schema, include NAP (Name, Address, Phone) consistently across the web.',
+    description: 'Signals for local search and location-based AI results.',
+    tips: 'Add LocalBusiness OR Organization schema, Google Maps, NAP.',
+  },
+
+  // Content Structure
+  imageAlt: {
+    title: 'Image ALT Tags',
+    description: 'Alt text on images larger than 200x200px.',
+    tips: 'Add descriptive ALT text to ≥2 images (>200px). Excludes logos/icons.',
   },
 };
 
@@ -128,19 +147,23 @@ const METRIC_DEFINITIONS: Record<string, { title: string; description: string; t
 const PILLAR_DEFINITIONS: Record<string, { title: string; description: string }> = {
   content: {
     title: 'Content Structure',
-    description: 'Measures how well your content is organized for AI comprehension. Well-structured content with schema markup, clear headings, and diverse formats helps AI systems understand and cite your information accurately.',
+    description: 'How well your content is organized for AI comprehension: schema, headings, multimodal, tables/lists.',
   },
   brand: {
     title: 'Brand Ranking',
-    description: 'Evaluates technical performance and brand signals. Fast, secure websites with strong brand recognition rank higher in both traditional search and AI-powered results.',
+    description: 'Brand signals: your ranking for brand keyword and community sentiment about your brand.',
+  },
+  technical: {
+    title: 'Website Technical',
+    description: 'Core Web Vitals (LCP, INP, CLS), mobile performance, security, and AI crawler compatibility.',
   },
   keyword: {
     title: 'Keyword Visibility',
-    description: 'Assesses your presence in search results. The more keywords you rank for and the higher your positions, the more likely AI systems will reference your content.',
+    description: 'Your presence in search results: keywords count, average positions, and intent match.',
   },
   trust: {
-    title: 'AI Trust & Sentiment',
-    description: 'Measures how trustworthy and authoritative your site appears to AI. Backlinks, E-E-A-T signals, and positive sentiment contribute to AI systems preferring your content as a source.',
+    title: 'AI Trust',
+    description: 'Trustworthiness signals: backlinks, referring domains, content sentiment, E-E-A-T, and local signals.',
   },
 };
 
@@ -298,16 +321,17 @@ export default function Home() {
                 pillarKey="content"
                 title="📝 Content Structure"
                 score={result.scores.contentStructure}
-                maxScore={30}
+                maxScore={28}
                 isExpanded={expandedPillar === 'content'}
                 onToggle={() => togglePillar('content')}
                 color="emerald"
                 breakdown={result.scores.breakdown?.contentStructure}
                 breakdownLabels={{
-                  schema: { label: 'Schema Markup', max: 9 },
+                  schema: { label: 'Schema Markup', max: 8 },
+                  headings: { label: 'Heading Structure', max: 5 },
+                  multimodal: { label: 'Multimodal Content', max: 4 },
+                  imageAlt: { label: 'Image ALT Tags', max: 3 },
                   tableLists: { label: 'Tables & Lists', max: 2 },
-                  headings: { label: 'Heading Structure', max: 6 },
-                  multimodal: { label: 'Multimodal Content', max: 5 },
                   directAnswer: { label: 'Direct Answer (TL;DR)', max: 5 },
                   contentGap: { label: 'Content Depth', max: 3 },
                 }}
@@ -317,27 +341,48 @@ export default function Home() {
                 setActiveTooltip={setActiveTooltip}
               />
 
-              {/* Brand Ranking */}
+              {/* Brand Ranking - NEW (10 pts) */}
               <PillarCard
                 pillarKey="brand"
                 title="🏢 Brand Ranking"
                 score={result.scores.brandRanking}
-                maxScore={20}
+                maxScore={9}
                 isExpanded={expandedPillar === 'brand'}
                 onToggle={() => togglePillar('brand')}
                 color="teal"
                 breakdown={result.scores.breakdown?.brandRanking}
                 breakdownLabels={{
-                  lcp: { label: 'LCP (Largest Contentful Paint)', max: 3 },
-                  fid: { label: 'INP (Interaction to Next Paint)', max: 2 },
-                  cls: { label: 'CLS (Cumulative Layout Shift)', max: 2 },
-                  mobile: { label: 'Mobile Performance', max: 3 },
-                  ssl: { label: 'SSL/HTTPS Security', max: 3 },
-                  brokenLinks: { label: 'Link Health', max: 3.5 },
-                  brandSearch: { label: 'Branded Search Rank', max: 3.5 },
+                  brandSearch: { label: 'Branded Search Rank', max: 5 },
+                  brandSentiment: { label: 'Brand Sentiment', max: 5 },
                 }}
                 definitions={METRIC_DEFINITIONS}
                 pillarDefinition={PILLAR_DEFINITIONS.brand}
+                activeTooltip={activeTooltip}
+                setActiveTooltip={setActiveTooltip}
+              />
+
+              {/* Website Technical - NEW (18 pts) */}
+              <PillarCard
+                pillarKey="technical"
+                title="⚙️ Website Technical"
+                score={result.scores.websiteTechnical || 0}
+                maxScore={17}
+                isExpanded={expandedPillar === 'technical'}
+                onToggle={() => togglePillar('technical')}
+                color="sky"
+                breakdown={result.scores.breakdown?.websiteTechnical}
+                breakdownLabels={{
+                  lcp: { label: 'LCP (Load Speed)', max: 3 },
+                  inp: { label: 'INP (Interactivity)', max: 2 },
+                  cls: { label: 'CLS (Visual Stability)', max: 2 },
+                  mobile: { label: 'Mobile Performance', max: 3 },
+                  ssl: { label: 'SSL/HTTPS Security', max: 3 },
+                  brokenLinks: { label: 'Link Health', max: 2 },
+                  llmsTxt: { label: 'LLMs.txt', max: 1.5 },
+                  sitemap: { label: 'Sitemap.xml', max: 1.5 },
+                }}
+                definitions={METRIC_DEFINITIONS}
+                pillarDefinition={{ title: 'Website Technical', description: 'Evaluates Core Web Vitals, security, and AI crawler compatibility.' }}
                 activeTooltip={activeTooltip}
                 setActiveTooltip={setActiveTooltip}
               />
@@ -347,7 +392,7 @@ export default function Home() {
                 pillarKey="keyword"
                 title="🔍 Keyword Visibility"
                 score={result.scores.keywordVisibility}
-                maxScore={25}
+                maxScore={23}
                 isExpanded={expandedPillar === 'keyword'}
                 onToggle={() => togglePillar('keyword')}
                 color="cyan"
@@ -366,9 +411,9 @@ export default function Home() {
               {/* AI Trust */}
               <PillarCard
                 pillarKey="trust"
-                title="🤖 AI Trust & Sentiment"
+                title="🤖 AI Trust"
                 score={result.scores.aiTrust}
-                maxScore={25}
+                maxScore={23}
                 isExpanded={expandedPillar === 'trust'}
                 onToggle={() => togglePillar('trust')}
                 color="sky"

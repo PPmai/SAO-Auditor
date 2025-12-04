@@ -11,6 +11,7 @@ interface DomainResult {
     total: number;
     contentStructure: number;
     brandRanking: number;
+    websiteTechnical: number;
     keywordVisibility: number;
     aiTrust: number;
   };
@@ -21,31 +22,37 @@ interface DomainResult {
   recommendations?: string[];
 }
 
-// Pillar definitions
+// Pillar definitions - Direct 100-point system
 const PILLAR_INFO = {
-  keywordVisibility: {
-    name: 'Keyword Visibility',
-    color: '#ec4899',
-    max: 20,
-    tips: ['Add targeted keywords', 'Optimize meta descriptions', 'Create topic clusters']
-  },
-  aiTrust: {
-    name: 'AI Trust & Sentiment',
-    color: '#3b82f6',
-    max: 20,
-    tips: ['Add author bios (E-E-A-T)', 'Include citations', 'Build quality backlinks']
-  },
   contentStructure: {
     name: 'Content Structure',
     color: '#14b8a6',
-    max: 30,
-    tips: ['Add schema markup', 'Improve heading hierarchy', 'Add structured data']
+    max: 28,
+    tips: ['Add schema markup', 'Improve heading hierarchy', 'Add image ALT tags']
   },
   brandRanking: {
-    name: 'Official Brand Ranking',
+    name: 'Brand Ranking',
     color: '#84cc16',
-    max: 30,
-    tips: ['Optimize Core Web Vitals', 'Improve page speed', 'Build domain authority']
+    max: 9,
+    tips: ['Rank #1 for brand keyword', 'Monitor community sentiment']
+  },
+  websiteTechnical: {
+    name: 'Website Technical',
+    color: '#06b6d4',
+    max: 17,
+    tips: ['Optimize Core Web Vitals', 'Add LLMs.txt', 'Ensure valid sitemap']
+  },
+  keywordVisibility: {
+    name: 'Keyword Visibility',
+    color: '#ec4899',
+    max: 23,
+    tips: ['Add targeted keywords', 'Improve average position', 'Match search intent']
+  },
+  aiTrust: {
+    name: 'AI Trust',
+    color: '#3b82f6',
+    max: 23,
+    tips: ['Add author info (E-E-A-T)', 'Include citations', 'Build quality backlinks']
   }
 };
 
@@ -56,7 +63,7 @@ export default function InternalDashboard() {
   const [analyzing, setAnalyzing] = useState(false);
   const [expandedDomain, setExpandedDomain] = useState<number | null>(null);
   const [showRecommendations, setShowRecommendations] = useState(true);
-  
+
   const [mainDomainName, setMainDomainName] = useState('');
   const [mainUrls, setMainUrls] = useState('');
   const [competitors, setCompetitors] = useState([
@@ -65,7 +72,7 @@ export default function InternalDashboard() {
     { name: '', urls: '' },
     { name: '', urls: '' },
   ]);
-  
+
   const [results, setResults] = useState<DomainResult[] | null>(null);
   const [error, setError] = useState('');
 
@@ -159,11 +166,11 @@ export default function InternalDashboard() {
 
   const handleExportPDF = () => {
     if (!results) return;
-    
-    const reportDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', month: 'long', day: 'numeric' 
+
+    const reportDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric', month: 'long', day: 'numeric'
     });
-    
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -179,27 +186,30 @@ export default function InternalDashboard() {
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #334155; }
     .card-title { font-size: 22px; font-weight: bold; color: #f1f5f9; }
     .card-score { font-size: 42px; font-weight: bold; color: #10b981; }
-    .pillars { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
-    .pillar { background: #0f172a; padding: 16px; border-radius: 12px; }
-    .pillar-name { font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
-    .pillar-score { font-size: 26px; font-weight: bold; }
-    .pillar-bar { height: 8px; background: #334155; border-radius: 4px; margin-top: 8px; overflow: hidden; }
-    .pillar-fill { height: 100%; border-radius: 4px; }
-    .pink { color: #ec4899; }
-    .blue { color: #3b82f6; }
-    .teal { color: #14b8a6; }
-    .lime { color: #84cc16; }
+    .pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .pillar { background: #0f172a; padding: 14px; border-radius: 12px; }
+    .pillar-name { font-size: 11px; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .pillar-score { font-size: 22px; font-weight: bold; }
+    .pillar-bar { height: 6px; background: #334155; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+    .pillar-fill { height: 100%; border-radius: 3px; }
+    .pillar-insight { font-size: 10px; color: #64748b; margin-top: 6px; }
+    .teal { color: #14b8a6; } .lime { color: #84cc16; } .cyan { color: #06b6d4; } .pink { color: #ec4899; } .blue { color: #3b82f6; }
     .recs { background: #0f172a; padding: 20px; border-radius: 12px; margin-top: 20px; }
     .recs h4 { color: #10b981; margin-bottom: 16px; font-size: 16px; }
-    .recs li { color: #cbd5e1; margin-bottom: 10px; font-size: 14px; padding-left: 20px; position: relative; }
+    .recs li { color: #cbd5e1; margin-bottom: 10px; font-size: 13px; padding-left: 20px; position: relative; }
     .recs li::before { content: "→"; position: absolute; left: 0; color: #10b981; }
     .urls { color: #64748b; font-size: 13px; margin-top: 16px; }
     .comparison { background: #1e293b; border-radius: 16px; padding: 28px; margin-top: 32px; border: 1px solid #334155; }
     .comparison h2 { color: #10b981; margin-bottom: 20px; font-size: 20px; }
     table { width: 100%; border-collapse: collapse; }
-    th { color: #94a3b8; font-size: 12px; text-transform: uppercase; text-align: left; padding: 12px 8px; border-bottom: 2px solid #334155; }
-    td { padding: 14px 8px; border-bottom: 1px solid #334155; color: #f1f5f9; font-size: 14px; }
+    th { color: #94a3b8; font-size: 11px; text-transform: uppercase; text-align: center; padding: 10px 6px; border-bottom: 2px solid #334155; }
+    th:first-child { text-align: left; }
+    td { padding: 12px 6px; border-bottom: 1px solid #334155; color: #f1f5f9; font-size: 13px; text-align: center; }
+    td:first-child { text-align: left; }
     .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid #334155; color: #64748b; font-size: 12px; }
+    .insight-box { background: #0f172a; padding: 16px; border-radius: 10px; margin-top: 16px; border-left: 3px solid #10b981; }
+    .insight-box h5 { color: #10b981; font-size: 13px; margin-bottom: 8px; }
+    .insight-box p { color: #94a3b8; font-size: 12px; line-height: 1.5; }
     @media print { 
       body { background: white; color: #1e293b; }
       .card, .comparison { background: #f8fafc; border-color: #e2e8f0; }
@@ -216,6 +226,7 @@ export default function InternalDashboard() {
     <h1>🔍 SAO Auditor Report</h1>
     <p>Search & AI Optimization Analysis</p>
     <p style="margin-top: 8px;">${reportDate}</p>
+    <p style="margin-top: 4px; color: #10b981;">Direct 100-Point Scoring System</p>
   </div>
 
   ${results.map((d, i) => `
@@ -226,46 +237,68 @@ export default function InternalDashboard() {
     </div>
     <div class="pillars">
       <div class="pillar">
-        <div class="pillar-name">Keyword Visibility</div>
-        <div class="pillar-score pink">${d.averageScore.keywordVisibility}/20</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.keywordVisibility/20)*100}%;background:#ec4899"></div></div>
-      </div>
-      <div class="pillar">
-        <div class="pillar-name">AI Trust & Sentiment</div>
-        <div class="pillar-score blue">${d.averageScore.aiTrust}/20</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.aiTrust/20)*100}%;background:#3b82f6"></div></div>
-      </div>
-      <div class="pillar">
         <div class="pillar-name">Content Structure</div>
         <div class="pillar-score teal">${d.averageScore.contentStructure}/30</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.contentStructure/30)*100}%;background:#14b8a6"></div></div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.contentStructure / 30) * 100}%;background:#14b8a6"></div></div>
+        <div class="pillar-insight">Schema, Headings, ALT, Tables, Direct Answer</div>
       </div>
       <div class="pillar">
-        <div class="pillar-name">Official Brand Ranking</div>
-        <div class="pillar-score lime">${d.averageScore.brandRanking}/30</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.brandRanking/30)*100}%;background:#84cc16"></div></div>
+        <div class="pillar-name">Brand Ranking</div>
+        <div class="pillar-score lime">${d.averageScore.brandRanking}/10</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.brandRanking / 10) * 100}%;background:#84cc16"></div></div>
+        <div class="pillar-insight">Brand Search Rank, Sentiment</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-name">Website Technical</div>
+        <div class="pillar-score cyan">${d.averageScore.websiteTechnical || 0}/18</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${((d.averageScore.websiteTechnical || 0) / 18) * 100}%;background:#06b6d4"></div></div>
+        <div class="pillar-insight">LCP, INP, CLS, SSL, LLMs.txt, Sitemap</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-name">Keyword Visibility</div>
+        <div class="pillar-score pink">${d.averageScore.keywordVisibility}/25</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.keywordVisibility / 25) * 100}%;background:#ec4899"></div></div>
+        <div class="pillar-insight">Keywords, Avg Position, Intent Match</div>
+      </div>
+      <div class="pillar">
+        <div class="pillar-name">AI Trust</div>
+        <div class="pillar-score blue">${d.averageScore.aiTrust}/25</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.aiTrust / 25) * 100}%;background:#3b82f6"></div></div>
+        <div class="pillar-insight">Backlinks, E-E-A-T, Sentiment, Local</div>
       </div>
     </div>
     <div class="urls">📊 ${d.urlResults.length} URLs analyzed</div>
     ${d.recommendations?.length ? `
     <div class="recs">
-      <h4>🎯 Recommendations</h4>
+      <h4>🎯 Optimization Priorities</h4>
       <ul>${d.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
     </div>` : ''}
+    <div class="insight-box">
+      <h5>💡 Key Insights for Internal Team</h5>
+      <p>
+        ${d.averageScore.contentStructure < 20 ? '• Content needs schema markup and proper heading structure. ' : ''}
+        ${d.averageScore.brandRanking < 5 ? '• Brand visibility is low - check if ranking #1 for brand keyword. ' : ''}
+        ${(d.averageScore.websiteTechnical || 0) < 10 ? '• Technical issues: Check Core Web Vitals, add LLMs.txt and sitemap. ' : ''}
+        ${d.averageScore.keywordVisibility < 15 ? '• Keyword strategy needs improvement - focus on intent matching. ' : ''}
+        ${d.averageScore.aiTrust < 15 ? '• Trust signals weak - add author info, citations, E-E-A-T elements. ' : ''}
+        ${d.averageScore.total >= 70 ? '✅ Good overall performance. Focus on incremental improvements.' : ''}
+      </p>
+    </div>
   </div>`).join('')}
 
   <div class="comparison">
-    <h2>📊 Competitor Comparison</h2>
+    <h2>📊 5-Pillar Comparison</h2>
     <table>
-      <tr><th>Domain</th><th>Overall</th><th>Keywords</th><th>AI Trust</th><th>Content</th><th>Brand</th></tr>
+      <tr><th>Domain</th><th>Total</th><th>Content<br/>/30</th><th>Brand<br/>/10</th><th>Technical<br/>/18</th><th>Keywords<br/>/25</th><th>AI Trust<br/>/25</th></tr>
       ${results.map((d, i) => `
       <tr>
         <td>${i === 0 ? '🏠' : '🏢'} ${d.name}</td>
         <td style="color:#10b981;font-weight:bold">${d.averageScore.total}</td>
-        <td class="pink">${d.averageScore.keywordVisibility}</td>
-        <td class="blue">${d.averageScore.aiTrust}</td>
         <td class="teal">${d.averageScore.contentStructure}</td>
         <td class="lime">${d.averageScore.brandRanking}</td>
+        <td class="cyan">${d.averageScore.websiteTechnical || 0}</td>
+        <td class="pink">${d.averageScore.keywordVisibility}</td>
+        <td class="blue">${d.averageScore.aiTrust}</td>
       </tr>`).join('')}
     </table>
   </div>
@@ -308,7 +341,7 @@ export default function InternalDashboard() {
       {/* Decorative curved line like mycommuters */}
       <div className="absolute top-0 right-0 w-1/2 h-80 overflow-hidden pointer-events-none">
         <svg viewBox="0 0 500 300" className="w-full h-full">
-          <path d="M0,100 Q150,100 200,50 T400,50 L500,50 L500,0 L0,0 Z" fill="none" stroke="#10b981" strokeWidth="4"/>
+          <path d="M0,100 Q150,100 200,50 T400,50 L500,50 L500,0 L0,0 Z" fill="none" stroke="#10b981" strokeWidth="4" />
         </svg>
       </div>
 
@@ -461,15 +494,13 @@ export default function InternalDashboard() {
                 <div
                   key={index}
                   onClick={() => setExpandedDomain(expandedDomain === index ? null : index)}
-                  className={`bg-white rounded-2xl p-5 cursor-pointer transition-all hover:scale-[1.02] ${
-                    expandedDomain === index ? 'ring-2 ring-[#ec4899]' : ''
-                  } ${index === 0 ? 'ring-2 ring-[#10b981]' : ''}`}
+                  className={`bg-white rounded-2xl p-5 cursor-pointer transition-all hover:scale-[1.02] ${expandedDomain === index ? 'ring-2 ring-[#ec4899]' : ''
+                    } ${index === 0 ? 'ring-2 ring-[#10b981]' : ''}`}
                 >
                   {/* Header */}
                   <div className="flex items-center gap-2 mb-4">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold ${
-                      index === 0 ? 'bg-[#10b981]' : 'bg-slate-500'
-                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold ${index === 0 ? 'bg-[#10b981]' : 'bg-slate-500'
+                      }`}>
                       {index === 0 ? '🏠' : '🏢'}
                     </div>
                     <span className="font-semibold text-slate-700 text-sm truncate">{domain.name}</span>
@@ -496,12 +527,13 @@ export default function InternalDashboard() {
                   </div>
                   <div className="text-center text-xs font-semibold text-slate-500 mb-4">Overall Performance</div>
 
-                  {/* Pillar Bars */}
+                  {/* Pillar Bars - Direct 100-point system */}
                   <div className="space-y-2">
-                    <PillarBar label="Keyword Visibility" value={domain.averageScore.keywordVisibility} max={20} color="#ec4899" />
-                    <PillarBar label="AI Trust & Sentiment" value={domain.averageScore.aiTrust} max={20} color="#3b82f6" />
-                    <PillarBar label="Content Structure" value={domain.averageScore.contentStructure} max={30} color="#14b8a6" />
-                    <PillarBar label="Brand Ranking" value={domain.averageScore.brandRanking} max={30} color="#84cc16" />
+                    <PillarBar label="Content Structure" value={domain.averageScore.contentStructure} max={28} color="#14b8a6" />
+                    <PillarBar label="Brand Ranking" value={domain.averageScore.brandRanking} max={9} color="#84cc16" />
+                    <PillarBar label="Website Technical" value={domain.averageScore.websiteTechnical || 0} max={17} color="#06b6d4" />
+                    <PillarBar label="Keyword Visibility" value={domain.averageScore.keywordVisibility} max={23} color="#ec4899" />
+                    <PillarBar label="AI Trust" value={domain.averageScore.aiTrust} max={23} color="#3b82f6" />
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-gray-100 text-center">
@@ -532,7 +564,7 @@ export default function InternalDashboard() {
                           <span className="text-lg font-bold" style={{ color: info.color }}>{score}/{info.max}</span>
                         </div>
                         <div className="h-2 bg-[#334155] rounded-full overflow-hidden mb-3">
-                          <div className="h-full rounded-full" style={{ width: `${(score/info.max)*100}%`, backgroundColor: info.color }} />
+                          <div className="h-full rounded-full" style={{ width: `${(score / info.max) * 100}%`, backgroundColor: info.color }} />
                         </div>
                         <div className="space-y-1">
                           {info.tips.map((tip, i) => (
@@ -561,9 +593,8 @@ export default function InternalDashboard() {
                         {results[expandedDomain].urlResults.map((u, i) => (
                           <tr key={i} className="border-b border-[#1e293b]">
                             <td className="py-2 text-white truncate max-w-md">{u.url}</td>
-                            <td className={`py-2 text-right font-bold ${
-                              u.score >= 70 ? 'text-[#10b981]' : u.score >= 50 ? 'text-yellow-400' : 'text-red-400'
-                            }`}>{u.score}/100</td>
+                            <td className={`py-2 text-right font-bold ${u.score >= 70 ? 'text-[#10b981]' : u.score >= 50 ? 'text-yellow-400' : 'text-red-400'
+                              }`}>{u.score}/100</td>
                           </tr>
                         ))}
                       </tbody>
@@ -584,10 +615,9 @@ export default function InternalDashboard() {
                     <div key={index} className="bg-[#0f172a] rounded-xl p-4 border border-[#334155]">
                       <div className="flex items-center justify-between mb-3">
                         <span className="font-semibold text-white text-sm">{index === 0 ? '🏠' : '🏢'} {domain.name}</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                          domain.averageScore.total >= 70 ? 'bg-[#10b981]/20 text-[#10b981]' :
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${domain.averageScore.total >= 70 ? 'bg-[#10b981]/20 text-[#10b981]' :
                           domain.averageScore.total >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
-                        }`}>{domain.averageScore.total}</span>
+                          }`}>{domain.averageScore.total}</span>
                       </div>
                       <ul className="space-y-2">
                         {(domain.recommendations || []).slice(0, 3).map((rec, i) => (
@@ -607,17 +637,18 @@ export default function InternalDashboard() {
 
             {/* Comparison Table */}
             <div className="bg-[#1e293b] rounded-2xl p-6 border border-[#334155]">
-              <h3 className="text-xl font-bold text-white mb-6">📊 Competitor Comparison Chart</h3>
+              <h3 className="text-xl font-bold text-white mb-6">📊 5-Pillar Comparison</h3>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-[#334155] text-sm">
                       <th className="pb-3 pr-4">Domain</th>
-                      <th className="pb-3 text-center">Overall</th>
-                      <th className="pb-3 text-center">Keywords</th>
-                      <th className="pb-3 text-center">AI Trust</th>
-                      <th className="pb-3 text-center">Content</th>
-                      <th className="pb-3 text-center">Brand</th>
+                      <th className="pb-3 text-center">Total</th>
+                      <th className="pb-3 text-center">Content<br />/28</th>
+                      <th className="pb-3 text-center">Brand<br />/9</th>
+                      <th className="pb-3 text-center">Technical<br />/17</th>
+                      <th className="pb-3 text-center">Keywords<br />/23</th>
+                      <th className="pb-3 text-center">AI Trust<br />/23</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -627,15 +658,15 @@ export default function InternalDashboard() {
                           {index === 0 ? '🏠' : '🏢'} {domain.name}
                         </td>
                         <td className="py-4 text-center">
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                            domain.averageScore.total >= 70 ? 'bg-[#10b981]/20 text-[#10b981]' :
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${domain.averageScore.total >= 70 ? 'bg-[#10b981]/20 text-[#10b981]' :
                             domain.averageScore.total >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
-                          }`}>{domain.averageScore.total}</span>
+                            }`}>{domain.averageScore.total}</span>
                         </td>
-                        <td className="py-4 text-center text-[#ec4899] font-medium">{domain.averageScore.keywordVisibility}/20</td>
-                        <td className="py-4 text-center text-[#3b82f6] font-medium">{domain.averageScore.aiTrust}/20</td>
-                        <td className="py-4 text-center text-[#14b8a6] font-medium">{domain.averageScore.contentStructure}/30</td>
-                        <td className="py-4 text-center text-[#84cc16] font-medium">{domain.averageScore.brandRanking}/30</td>
+                        <td className="py-4 text-center text-[#14b8a6] font-medium">{domain.averageScore.contentStructure}/28</td>
+                        <td className="py-4 text-center text-[#84cc16] font-medium">{domain.averageScore.brandRanking}/9</td>
+                        <td className="py-4 text-center text-[#06b6d4] font-medium">{domain.averageScore.websiteTechnical || 0}/17</td>
+                        <td className="py-4 text-center text-[#ec4899] font-medium">{domain.averageScore.keywordVisibility}/23</td>
+                        <td className="py-4 text-center text-[#3b82f6] font-medium">{domain.averageScore.aiTrust}/23</td>
                       </tr>
                     ))}
                   </tbody>
