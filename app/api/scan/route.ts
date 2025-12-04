@@ -125,6 +125,15 @@ export async function POST(request: NextRequest) {
     const mainScores = mainUrlResults.map(r => r.analysis.scores);
     const mainDomainAverage = calculateAverageScores(mainScores);
 
+    // Map API errors to affected metrics (define early so it can be used in competitor analysis)
+    const apiErrorToMetrics: Record<string, string[]> = {
+      'Ahrefs keywords': ['Keyword Visibility (Organic Keywords, Average Position)', 'Brand Ranking (Branded Search Rank)'],
+      'Ahrefs backlinks': ['AI Trust (Backlink Quality, Referring Domains)', 'Brand Ranking (Brand Sentiment)'],
+      'DataForSEO keywords': ['Keyword Visibility (Organic Keywords, Average Position)'],
+      'Moz backlinks': ['AI Trust (Backlink Quality, Referring Domains)'],
+      'Google Search Console': ['Keyword Visibility (Organic Keywords, Average Position)'],
+    };
+
     // Analyze competitor domains
     const competitorResults = await Promise.all(
       competitorData.map(async (comp) => {
@@ -213,15 +222,6 @@ export async function POST(request: NextRequest) {
     // Build warnings for missing data / API issues
     const warnings: string[] = [];
     const firstAnalysis = mainUrlResults[0].analysis;
-
-    // Map API errors to affected metrics
-    const apiErrorToMetrics: Record<string, string[]> = {
-      'Ahrefs keywords': ['Keyword Visibility (Organic Keywords, Average Position)', 'Brand Ranking (Branded Search Rank)'],
-      'Ahrefs backlinks': ['AI Trust (Backlink Quality, Referring Domains)', 'Brand Ranking (Brand Sentiment)'],
-      'DataForSEO keywords': ['Keyword Visibility (Organic Keywords, Average Position)'],
-      'Moz backlinks': ['AI Trust (Backlink Quality, Referring Domains)'],
-      'Google Search Console': ['Keyword Visibility (Organic Keywords, Average Position)'],
-    };
 
     // API-level errors from unified SEO manager
     if (firstAnalysis.apiErrors && firstAnalysis.apiErrors.length > 0) {
