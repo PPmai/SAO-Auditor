@@ -13,21 +13,6 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
-  // If Supabase is not configured, allow all routes (dev mode)
-  if (!supabaseUrl || !supabaseKey) {
-    // In dev mode without Supabase, redirect protected routes to home
-    const isProtectedRoute = protectedRoutes.some(route => 
-      pathname.startsWith(route)
-    );
-    
-    if (isProtectedRoute) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-    
-    return NextResponse.next();
-  }
-  
-  // Supabase is configured - basic auth check using cookies
   const isProtectedRoute = protectedRoutes.some(route => 
     pathname.startsWith(route)
   );
@@ -36,19 +21,25 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  // Simple session check based on cookies
-  const hasSession = request.cookies.getAll().some(c => 
-    c.name.includes('sb-') && c.name.includes('-auth-token')
-  );
+  // Check for simple auth session cookie (works with or without Supabase)
+  const hasSession = request.cookies.get('auth_session') !== undefined;
+  
+  // Also check Supabase session if configured
+  const hasSupabaseSession = supabaseUrl && supabaseKey && 
+    request.cookies.getAll().some(c => 
+      c.name.includes('sb-') && c.name.includes('-auth-token')
+    );
+  
+  const isAuthenticated = hasSession || hasSupabaseSession;
 
   // Redirect logic
-  if (isProtectedRoute && !hasSession) {
+  if (isProtectedRoute && !isAuthenticated) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthRoute && hasSession) {
+  if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

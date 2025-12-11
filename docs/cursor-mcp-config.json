@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ahrefs": {
+      "command": "node",
+      "args": ["/Users/mai/Documents/GitHub/SAO Auditor/docs/ahrefs-mcp-server/dist/index.js"],
+      "env": {
+        "AHREFS_API_KEY": "qVfHcVgA_OU1OjClvv5Rn0chO9WinTC4uiR0f639"
+      }
+    }
+  }
+}

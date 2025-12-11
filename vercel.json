@@ -1,0 +1,16 @@
+{
+  "buildCommand": "prisma generate && next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/scan/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/v1/scan/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}
+

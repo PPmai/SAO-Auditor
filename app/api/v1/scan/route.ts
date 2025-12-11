@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       analyzeDomainWithSemrush(normalizedUrl),
     ]);
 
-    const scores = calculateTotalScore(scrapingData, pagespeedData, undefined);
+    const scores = await calculateTotalScore(scrapingData, pagespeedData, undefined);
     const scoreLabel = getScoreLabel(scores.total);
 
     // Analyze competitors if provided
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
           analyzePageSpeed(normalized),
           analyzeDomainWithSemrush(normalized),
         ]);
-        const compScores = calculateTotalScore(scraping, pagespeed, undefined);
+        const compScores = await calculateTotalScore(scraping, pagespeed, undefined);
         return {
           url: normalized,
           scores: {

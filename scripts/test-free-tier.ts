@@ -74,9 +74,9 @@ async function testPageSpeed(url: string): Promise<{ result: PageSpeedResult; er
   return { result, errors };
 }
 
-function testScoring(scraping: ScrapingResult, pagespeed: PageSpeedResult): { scores: any; errors: string[] } {
+async function testScoring(scraping: ScrapingResult, pagespeed: PageSpeedResult): Promise<{ scores: any; errors: string[] }> {
   const errors: string[] = [];
-  const scores = calculateTotalScore(scraping, pagespeed);
+  const scores = await calculateTotalScore(scraping, pagespeed);
   
   // Validate scoring
   if (scores.total < 0 || scores.total > 100) {
@@ -136,7 +136,7 @@ async function runTestForUrl(url: string): Promise<TestResult> {
     
     // Test 3: Scoring Engine
     log('yellow', '  📊 Testing Scoring Engine...');
-    const scoringTest = testScoring(scraperTest.result, pagespeedTest.result);
+    const scoringTest = await testScoring(scraperTest.result, pagespeedTest.result);
     errors.push(...scoringTest.errors);
     
     const scoreLabel = getScoreLabel(scoringTest.scores.total);

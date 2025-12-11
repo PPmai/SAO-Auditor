@@ -26,15 +26,20 @@ export default function LoadingPopup({ progress, statusMessage }: LoadingPopupPr
 
 
   useEffect(() => {
-    // Smooth progress animation
+    // Smooth progress animation - faster when near completion
     const timer = setInterval(() => {
       setDisplayProgress((prev) => {
         if (prev < progress) {
+          // If progress is 100%, animate faster to complete quickly
+          if (progress === 100) {
+            return Math.min(prev + 5, progress);
+          }
+          // Otherwise, normal speed
           return Math.min(prev + 1, progress);
         }
         return prev;
       });
-    }, 50);
+    }, progress === 100 ? 20 : 50); // Faster interval when at 100%
 
     return () => clearInterval(timer);
   }, [progress]);

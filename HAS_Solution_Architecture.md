@@ -158,22 +158,49 @@
 **Fallback Priority:**
 | Priority | API | Data Provided | Status |
 |----------|-----|---------------|--------|
-| 1 | Ahrefs | Keywords, Positions, Traffic, Backlinks, DR | Requires paid plan with API access |
+| 1 | Ahrefs | Keywords, Positions, Traffic | Requires paid plan with API access |
 | 2 | DataForSEO | Keywords, Positions, Traffic | ~$50/month pay-per-use |
-| 3 | Moz | DA, PA, Backlinks, Referring Domains | Free tier: 10 queries/month |
-| 4 | Estimates | Basic estimates based on domain | Always available |
+| 3 | Google Search Console | Real search performance data | Requires OAuth setup |
+| 4 | Google Custom Search | Brand/keyword positions, SERP snippets, competitors | 100 free searches/day |
+| 5 | Moz | DA, PA, Backlinks, Referring Domains | Free tier: 10 queries/month |
+| 6 | Common Crawl | Backlinks (limited) | Free, but Index API limitation |
+| 7 | Gemini | Brand sentiment analysis | Free tier available |
+| 8 | Estimates | Basic estimates based on domain | Always available |
 
-### 4.1 Ahrefs API (Primary - Optional)
+### 4.1 Google Custom Search API (Brand & Keyword Positions)
+**Subscription:** Free tier: 100 searches/day, then pay-per-use
+
+| Feature | Purpose | Metrics |
+|---------|---------|---------|
+| `getBrandSearchPosition()` | Brand Search Position | Position in top 10 for brand name |
+| `getKeywordPosition()` | Keyword Position Check | Position in top 10 for specific keywords |
+| `getCompetitorPosition()` | Competitor Position | Competitor ranking for brand/keywords |
+| `getSERPSnippet()` | SERP Preview | Title + description as shown in Google |
+| `getTopCompetitors()` | Competitor Finder | Top 10 competitors for target keywords |
+
+**Setup:**
+1. Create Custom Search Engine at https://programmablesearchengine.google.com/
+2. Get Search Engine ID (CX)
+3. Get API Key from https://console.cloud.google.com/apis/credentials
+4. Add to `.env`: `GOOGLE_CUSTOM_SEARCH_API_KEY` and `GOOGLE_CUSTOM_SEARCH_ENGINE_ID`
+
+**Replaces:**
+- Ahrefs/Semrush brand tracking
+- Rank tracker tools
+- Ahrefs position checker
+- SERP preview tools
+- Competitor finder
+
+### 4.2 Ahrefs API (Primary for Keywords - Optional)
 **Subscription Required:** API access plan ($199+/mo)
 
 | Endpoint | Purpose | Metrics |
 |----------|---------|---------|
-| `site-explorer/organic-keywords` | Organic Keywords | Keywords, positions, traffic |
-| `site-explorer/backlinks-stats` | Backlink Summary | Total backlinks, referring domains, DR |
+| `site-explorer/organic-keywords` | Organic Keywords | Keywords, positions, traffic, intent |
 
-**Note:** Falls back to alternatives if plan doesn't include API access.
+**Note:** Falls back to DataForSEO or Google Custom Search if plan doesn't include API access.
 
-### 4.2 DataForSEO API (Fallback for Keywords)
+### 4.3 DataForSEO API (Fallback for Keywords)
 **Subscription:** Pay-per-use (~$50/mo for 100 scans)
 
 | Endpoint | Purpose | Metrics |
@@ -181,7 +208,7 @@
 | `serp/google/organic` | Keyword Rankings | Positions, traffic estimates |
 | `domain_analytics` | Domain Overview | Keyword count, traffic |
 
-### 4.3 Moz API (Fallback for Backlinks)
+### 4.4 Moz API (Fallback for Backlinks)
 **Subscription:** Free tier available (10 queries/month)
 
 | Metric | Source | Limits |
@@ -191,7 +218,7 @@
 | Linking Domains | Link Explorer | Free: 10/month |
 | Inbound Links | Link Explorer | Free: 10/month |
 
-### 4.4 Google PageSpeed Insights API (FREE)
+### 4.5 Google PageSpeed Insights API (FREE)
 **Endpoint:** `https://www.googleapis.com/pagespeedonline/v5/runPagespeed`
 
 | Metric | Source | Scoring |
@@ -203,8 +230,8 @@
 
 **Rate Limit:** 25,000 queries/day (FREE)
 
-### 4.5 Gemini API (For Sentiment Analysis)
-**Model:** gemini-1.5-flash (cost-effective)
+### 4.6 Gemini API (For Brand Sentiment Analysis)
+**Model:** gemini-2.5-flash (cost-effective)
 
 | Task | Purpose | Est. Tokens |
 |------|---------|-------------|
@@ -237,44 +264,41 @@
 
 ---
 
-### 5.1 PILLAR 1: Content Structure (30 points)
+### 5.1 PILLAR 1: Content Structure (25 points)
 
 | Metric | Weight | Data Source | Scoring Logic |
 |--------|--------|-------------|---------------|
-| **Schema Coverage** | 8 | Scraping | Has JSON-LD: +4, Rich schema (FAQ/HowTo/Product): +4 |
-| **Table/List Utilization** | 6 | Scraping | Tables ≥2: +3, Lists ≥5: +3 |
+| **Schema Coverage** | 8 | Scraping | Basic schema: +3.5, Rich schema (FAQ/HowTo/Product): +4.5 |
 | **Heading Structure** | 5 | Scraping | Proper H1→H2→H3 hierarchy: +5 |
-| **Multimodal Content** | 5 | Scraping | Images with alt: +2, Videos: +2, Infographics: +1 |
-| **Direct Answer (TL;DR)** | 3 | Claude API | First 50 words answer main query: 0-3 |
-| **Content Gap Score** | 3 | Semrush + Claude | Missing key topics vs competitors: 0-3 |
+| **Multimodal Content** | 4 | Scraping | Images with alt: +1.5, Videos: +1.5, Infographics: +0.75 |
+| **Image Alt Text** | 2.5 | Scraping | 80%+ coverage: 2.5, 60%+: 1.75, 40%+: 1, <40%: 0 |
+| **Table/List Utilization** | 2 | Scraping | Tables ≥1: +1, Lists ≥3: +1 |
+| **Direct Answer (TL;DR)** | 2 | Scraping | First 50 words answer main query: 0-2 |
+| **Content Gap Score** | 1 | Scraping | Word count ≥1000: 1, ≥500: 0.75, ≥200: 0.5, <200: 0 |
 
 **Scoring Formula:**
 ```javascript
-contentScore = schemaScore + tableListScore + headingScore + 
-               multimodalScore + directAnswerScore + contentGapScore
-// Max: 30 points
+contentScore = schemaScore + headingScore + multimodalScore + 
+               imageAltScore + tableListScore + directAnswerScore + contentGapScore
+// Max: 25 points
 ```
 
 ---
 
-### 5.2 PILLAR 2: Official Brand Ranking (30 points)
+### 5.2 PILLAR 2: Brand Ranking (9 points)
 
 | Metric | Weight | Data Source | Scoring Logic |
 |--------|--------|-------------|---------------|
-| **Core Web Vitals (LCP)** | 6 | PageSpeed API | Good: 6, Needs Improvement: 3, Poor: 0 |
-| **Core Web Vitals (INP)** | 4 | PageSpeed API | Good: 4, Needs Improvement: 2, Poor: 0 |
-| **Core Web Vitals (CLS)** | 4 | PageSpeed API | Good: 4, Needs Improvement: 2, Poor: 0 |
-| **Mobile Friendly** | 4 | PageSpeed API | Score ≥ 90: 4, ≥ 70: 2, < 70: 0 |
-| **SSL/HTTPS** | 4 | SSL Check | Valid SSL: 4, Invalid/None: 0 |
-| **Broken Links** | 4 | Scraping + Check | 0 broken: 4, 1-5: 2, > 5: 0 |
-| **Branded Search Rank** | 4 | Semrush | #1 for brand: 4, Top 3: 2, Not in top 10: 0 |
+| **Brand Search Position** | 5 | Google Custom Search API | #1: 5, #2-3: 3, #4-10: 1.5, Not in top 10: 0 |
+| **Brand Sentiment** | 5 | Gemini API | 2+ positive: 5, 1 pos+PR: 4, Neutral: 2.5, PR only: 2, 1 negative: 1, 2+ negative: 0 |
 
 **Scoring Formula:**
 ```javascript
-brandScore = lcpScore + inpScore + clsScore + mobileScore + 
-             sslScore + brokenLinksScore + brandedSearchScore
-// Max: 30 points
+brandScore = brandSearchScore + brandSentimentScore
+// Max: 9 points (rounded from 10)
 ```
+
+**Note**: Core Web Vitals and technical metrics moved to "Website Technical" pillar (see 5.3).
 
 ---
 
@@ -282,57 +306,70 @@ brandScore = lcpScore + inpScore + clsScore + mobileScore +
 
 | Metric | Weight | Data Source | Scoring Logic |
 |--------|--------|-------------|---------------|
-| **Organic Keywords (Top 10)** | 6 | Semrush | ≥100 keywords: 6, ≥50: 4, ≥20: 2, <20: 0 |
-| **Organic Traffic** | 5 | Semrush | Based on percentile vs competitors |
-| **Keyword Positions** | 5 | Semrush | Avg position ≤3: 5, ≤10: 3, ≤20: 1, >20: 0 |
-| **Search Visibility Trend** | 4 | Semrush | Improving: 4, Stable: 2, Declining: 0 |
+| **Organic Keywords** | 12.5 | Ahrefs/DataForSEO/GSC | Based on keyword count vs competitor benchmark |
+| **Average Position** | 5 | Ahrefs/DataForSEO/GSC | ≤3: 5, ≤10: 3, ≤20: 1, >20: 0 |
+| **Search Intent Match** | 5.5 | Ahrefs/DataForSEO | Intent analysis based on keyword types |
 
 **Scoring Formula:**
 ```javascript
-visibilityScore = keywordCountScore + trafficScore + 
-                  positionScore + trendScore
-// Max: 20 points
+keywordScore = organicKeywordsScore + averagePositionScore + intentMatchScore
+// Max: 23 points
 ```
+
+**Google Custom Search API Features:**
+- **Keyword Position Check**: `getKeywordPosition(keyword, domain)` - Check if domain ranks for specific keywords
+- **SERP Snippet Preview**: `getSERPSnippet(keyword, domain)` - Get title + description as shown in Google
+- **Top 10 Competitors**: `getTopCompetitors(keyword, excludeDomain)` - See who ranks for target keywords
 
 ---
 
-### 5.4 PILLAR 4: AI Trust & Sentiment (20 points)
+### 5.5 PILLAR 5: AI Trust (22 points)
 
 | Metric | Weight | Data Source | Scoring Logic |
 |--------|--------|-------------|---------------|
-| **Backlink Quality** | 6 | Semrush | High DR referring domains ratio |
-| **Referring Domains** | 4 | Semrush | ≥100: 4, ≥50: 3, ≥20: 2, <20: 1 |
-| **Content Sentiment** | 4 | Claude API | Positive: 4, Neutral: 2, Negative: 0 |
-| **E-E-A-T Signals** | 4 | Scraping + Claude | Author bio, About page, Citations |
-| **Local/GEO Signals** | 2 | Scraping | GMB embed, Address schema, Map |
+| **Backlink Quality** | 5 | Common Crawl/Moz | Based on referring domains count (normalized) |
+| **Referring Domains** | 4 | Common Crawl/Moz | ≥100: 4, ≥50: 3, ≥20: 2, <20: 1 |
+| **Sentiment** | 3.5 | Scraping | Based on content depth and word count |
+| **E-E-A-T Signals** | 3.5 | Scraping | Author info, schema, citations: 0-3.5 |
+| **Local/GEO Signals** | 1.75 | Scraping | LocalBusiness schema: 1.75, None: 0 |
 
 **Scoring Formula:**
 ```javascript
-trustScore = backlinkQualityScore + referringDomainsScore + 
-             sentimentScore + eeatScore + localScore
-// Max: 20 points
+aiTrustScore = backlinkScore + referringDomainsScore + 
+               sentimentScore + eeatScore + localScore
+// Max: 22 points
 ```
+
+**Data Sources (Priority Order):**
+1. **Common Crawl** (free, but Index API limitation)
+2. **Moz API** (fallback, free tier: 10 queries/month)
+3. **Estimates** (final fallback)
 
 ---
 
-### 5.5 Final Score Calculation
+### 5.6 Final Score Calculation
 
 ```javascript
 const calculateFinalScore = (scores) => {
-  const weights = {
-    contentStructure: 0.30,    // 30 points max
-    brandRanking: 0.30,        // 30 points max
-    keywordVisibility: 0.20,   // 20 points max
-    aiTrust: 0.20              // 20 points max
-  };
-  
+  // Direct 100-point system (no normalization)
   return Math.round(
-    scores.contentStructure + 
-    scores.brandRanking + 
-    scores.keywordVisibility + 
-    scores.aiTrust
+    scores.contentStructure +    // 28 pts max
+    scores.brandRanking +        // 9 pts max
+    scores.websiteTechnical +    // 17 pts max
+    scores.keywordVisibility +   // 23 pts max
+    scores.aiTrust              // 23 pts max
   );
+  // Total: 100 points
 };
+```
+
+**Pillar Breakdown:**
+- Content Structure: 25 points (reduced from 28)
+- Brand Ranking: 9 points
+- Website Technical: 17 points
+- Keyword Visibility: 23 points
+- AI Trust: 22 points (reduced from 23)
+- **Total: 96 points** (normalized to 100 in display)
 
 // Score Interpretation
 const getScoreLabel = (score) => {

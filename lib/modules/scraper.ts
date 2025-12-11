@@ -56,10 +56,84 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
     const metaDescription = $('meta[name="description"]').attr('content') ||
       $('meta[property="og:description"]').attr('content');
 
-    // Extract headings
-    const h1 = $('h1').map((_, el) => $(el).text().trim()).get();
-    const h2 = $('h2').map((_, el) => $(el).text().trim()).get();
-    const h3 = $('h3').map((_, el) => $(el).text().trim()).get();
+    // Extract headings - filter out hidden elements and those in excluded sections
+    const h1 = $('h1')
+      .filter((_, el) => {
+        const $el = $(el);
+        // Exclude hidden elements
+        if ($el.css('display') === 'none' || 
+            $el.css('visibility') === 'hidden' || 
+            $el.attr('hidden') !== undefined ||
+            $el.hasClass('sr-only') ||
+            $el.hasClass('visually-hidden')) {
+          return false;
+        }
+        // Exclude headings in navigation, footer, modal, or other excluded sections
+        const parent = $el.closest('nav, footer, header, [role="navigation"], [role="banner"], .modal, .popup, [aria-hidden="true"]');
+        if (parent.length > 0) {
+          return false;
+        }
+        // Exclude empty headings
+        const text = $el.text().trim();
+        if (!text || text.length === 0) {
+          return false;
+        }
+        return true;
+      })
+      .map((_, el) => $(el).text().trim())
+      .get();
+    
+    const h2 = $('h2')
+      .filter((_, el) => {
+        const $el = $(el);
+        // Exclude hidden elements
+        if ($el.css('display') === 'none' || 
+            $el.css('visibility') === 'hidden' || 
+            $el.attr('hidden') !== undefined ||
+            $el.hasClass('sr-only') ||
+            $el.hasClass('visually-hidden')) {
+          return false;
+        }
+        // Exclude headings in navigation, footer, modal, or other excluded sections
+        const parent = $el.closest('nav, footer, header, [role="navigation"], [role="banner"], .modal, .popup, [aria-hidden="true"]');
+        if (parent.length > 0) {
+          return false;
+        }
+        // Exclude empty headings
+        const text = $el.text().trim();
+        if (!text || text.length === 0) {
+          return false;
+        }
+        return true;
+      })
+      .map((_, el) => $(el).text().trim())
+      .get();
+    
+    const h3 = $('h3')
+      .filter((_, el) => {
+        const $el = $(el);
+        // Exclude hidden elements
+        if ($el.css('display') === 'none' || 
+            $el.css('visibility') === 'hidden' || 
+            $el.attr('hidden') !== undefined ||
+            $el.hasClass('sr-only') ||
+            $el.hasClass('visually-hidden')) {
+          return false;
+        }
+        // Exclude headings in navigation, footer, modal, or other excluded sections
+        const parent = $el.closest('nav, footer, header, [role="navigation"], [role="banner"], .modal, .popup, [aria-hidden="true"]');
+        if (parent.length > 0) {
+          return false;
+        }
+        // Exclude empty headings
+        const text = $el.text().trim();
+        if (!text || text.length === 0) {
+          return false;
+        }
+        return true;
+      })
+      .map((_, el) => $(el).text().trim())
+      .get();
 
     // Check for Schema.org JSON-LD
     const schemaScripts = $('script[type="application/ld+json"]').toArray();
@@ -86,8 +160,10 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
     const imageCount = $('img').length;
     const imagesWithAlt = $('img[alt]').length;
 
-    // Count videos
-    const videoCount = $('video').length + $('iframe[src*="youtube"], iframe[src*="vimeo"]').length;
+    // Count videos - including YouTube embeds (youtube.com, youtu.be, youtube-nocookie.com)
+    const videoCount = $('video').length + 
+      $('iframe[src*="youtube"], iframe[src*="youtu.be"], iframe[src*="youtube-nocookie"]').length +
+      $('iframe[src*="vimeo"]').length;
 
     // Count links
     const domain = new URL(normalizedUrl).hostname;
@@ -127,17 +203,31 @@ export async function scrapeWebsite(url: string): Promise<ScrapingResult> {
       }
     } catch (e) { hasLlmsTxt = false; }
 
-    // Check sitemap.xml validity - Less strict: only require urlset + loc
+    // Check sitemap*.xml validity - Check all sitemap files (sitemap.xml, sitemap_index.xml, etc.)
     let sitemapValid = false;
     try {
-      const sitemapUrl = new URL(normalizedUrl).origin + '/sitemap.xml';
-      const sitemapResp = await axios.get(sitemapUrl, { timeout: 5000 });
-      if (sitemapResp.status === 200) {
-        const xml = sitemapResp.data;
-        // Basic validation: must have urlset/sitemapindex and loc
-        const hasUrlset = xml.includes('<urlset') || xml.includes('<sitemapindex');
-        const hasLoc = xml.includes('<loc>');
-        sitemapValid = hasUrlset && hasLoc;
+      const origin = new URL(normalizedUrl).origin;
+      // Try common sitemap file names
+      const sitemapPaths = ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml'];
+      
+      for (const path of sitemapPaths) {
+        try {
+          const sitemapUrl = origin + path;
+          const sitemapResp = await axios.get(sitemapUrl, { timeout: 5000 });
+          if (sitemapResp.status === 200) {
+            const xml = sitemapResp.data;
+            // Basic validation: must have urlset/sitemapindex and loc
+            const hasUrlset = xml.includes('<urlset') || xml.includes('<sitemapindex');
+            const hasLoc = xml.includes('<loc>');
+            if (hasUrlset && hasLoc) {
+              sitemapValid = true;
+              break; // Found valid sitemap, stop searching
+            }
+          }
+        } catch (e) {
+          // Continue to next sitemap path
+          continue;
+        }
       }
     } catch (e) { sitemapValid = false; }
 

@@ -31,8 +31,8 @@ export default function PricingPage() {
             <Link href="/" className="text-slate-600 hover:text-slate-800 transition">
               Home
             </Link>
-            <Link href="/admin/login" className="text-slate-600 hover:text-slate-800 transition">
-              Admin
+            <Link href="/login" className="text-slate-600 hover:text-slate-800 transition">
+              Log In
             </Link>
           </nav>
         </div>
@@ -75,7 +75,7 @@ export default function PricingPage() {
               <h3 className="text-lg font-semibold text-slate-700 mb-2">Free</h3>
               <div className="flex items-baseline gap-1">
                 <span className="text-5xl font-bold text-slate-800">$0</span>
-                <span className="text-slate-600">/forever</span>
+                <span className="text-slate-700">/forever</span>
               </div>
             </div>
 
@@ -133,7 +133,7 @@ export default function PricingPage() {
               <h3 className="text-lg font-semibold text-slate-800 mb-2">Pro</h3>
               <div className="flex items-baseline gap-1">
                 <span className="text-5xl font-bold text-slate-800">${proPrice}</span>
-                <span className="text-slate-600">{proPeriod}</span>
+                <span className="text-slate-700">{proPeriod}</span>
               </div>
               {savings && (
                 <p className="text-slate-700 text-sm mt-1">{savings}</p>
@@ -199,7 +199,7 @@ export default function PricingPage() {
           </h2>
           
           <div className="space-y-6">
-            <div className="rounded-xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <div className="rounded-xl p-6 border border-slate-300 shadow-sm bg-white">
               <h3 className="text-slate-800 font-semibold mb-2">What's included in the free tier?</h3>
               <p className="text-slate-700 text-sm">
                 The free tier lets you analyze one URL at a time with our complete 5-pillar scoring system. 
@@ -207,7 +207,7 @@ export default function PricingPage() {
               </p>
             </div>
             
-            <div className="rounded-xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <div className="rounded-xl p-6 border border-slate-300 shadow-sm bg-white">
               <h3 className="text-slate-800 font-semibold mb-2">How does batch URL scanning work?</h3>
               <p className="text-slate-700 text-sm">
                 Pro users can scan up to 30 URLs from their domain simultaneously. The system calculates 
@@ -215,7 +215,7 @@ export default function PricingPage() {
               </p>
             </div>
             
-            <div className="rounded-xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <div className="rounded-xl p-6 border border-slate-300 shadow-sm bg-white">
               <h3 className="text-slate-800 font-semibold mb-2">Can I compare with competitors?</h3>
               <p className="text-slate-700 text-sm">
                 Yes! Pro tier includes competitor analysis. Add up to 4 competitor domains with 10 URLs each, 
@@ -223,7 +223,7 @@ export default function PricingPage() {
               </p>
             </div>
             
-            <div className="rounded-xl p-6 border border-slate-300 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+            <div className="rounded-xl p-6 border border-slate-300 shadow-sm bg-white">
               <h3 className="text-slate-800 font-semibold mb-2">How do I get started with Pro?</h3>
               <p className="text-slate-700 text-sm">
                 Click "Contact Sales" to fill out a quick form. Our team will reach out within 24 hours to 
@@ -243,10 +243,10 @@ export default function PricingPage() {
             </div>
             <div>
               <span className="text-slate-800 font-semibold">SAO Auditor</span>
-              <span className="text-slate-600 text-sm ml-2">by Conductor</span>
+              <span className="text-slate-700 text-sm ml-2">by Conductor</span>
             </div>
           </div>
-          <div className="text-slate-600 text-sm">
+          <div className="text-slate-700 text-sm">
             © 2025 SAO Auditor. All rights reserved.
           </div>
         </div>

@@ -1,18 +1,24 @@
 /**
  * API Manager - Cascading SEO Data Collection
  * 
- * Priority Order:
- * 1. Ahrefs (paid) - Best data quality
+ * Priority Order for Keywords:
+ * 1. Google Custom Search API (via Keyword Discovery) - Real ranking data
  * 2. DataForSEO (paid) - Good alternative
- * 3. Moz (free tier) - DA/PA, backlinks
- * 4. Estimates (fallback) - Basic calculations
+ * 3. Estimates (fallback) - Basic calculations
+ * 
+ * Priority Order for Backlinks:
+ * 1. Common Crawl (free) - Backlink discovery, referring domains, anchor text
+ * 2. Moz (free tier) - DA/PA, backlinks
+ * 3. Estimates (fallback) - Basic calculations
  * 
  * This module orchestrates API calls with automatic failover.
  */
 
-import { getUrlKeywords, getBacklinkMetrics, isAhrefsConfigured, AhrefsKeywordMetrics, AhrefsBacklinkMetrics } from './ahrefs';
 import { getDomainKeywords, isDataForSEOConfigured, DomainKeywordMetrics } from './dataforseo';
 import { getMozMetrics, isMozConfigured, MozMetrics } from './moz';
+import { getBacklinkMetrics, isCommonCrawlAvailable, CommonCrawlBacklinkMetrics } from './commoncrawl';
+import { discoverKeywords, KeywordDiscoveryResult } from './keyword-discovery';
+import { isGoogleCustomSearchConfigured } from './google-custom-search';
 
 // Unified metrics interface
 export interface UnifiedSEOMetrics {
@@ -22,6 +28,14 @@ export interface UnifiedSEOMetrics {
         top100: number;
         avgPosition: number;
         estimatedTraffic: number;
+        intentBreakdown?: {
+            informational: number;
+            commercial: number;
+            transactional: number;
+            navigational: number;
+            dominant: string;
+            dominantPercent: number;
+        };
     };
     backlinks: {
         total: number;
@@ -30,15 +44,16 @@ export interface UnifiedSEOMetrics {
         domainAuthority: number;
     };
     source: {
-        keywords: 'ahrefs' | 'dataforseo' | 'moz' | 'estimate';
-        backlinks: 'ahrefs' | 'moz' | 'estimate';
+        keywords: 'googlecustomsearch' | 'dataforseo' | 'estimate';
+        backlinks: 'commoncrawl' | 'moz' | 'estimate';
     };
     errors: string[];
 }
 
 /**
  * Get unified SEO metrics with cascading fallback
- * Tries: Ahrefs → DataForSEO → Moz → Estimates
+ * Keywords: Ahrefs → DataForSEO → Estimates
+ * Backlinks: Common Crawl → Moz → Estimates
  */
 export async function getUnifiedSEOMetrics(url: string): Promise<UnifiedSEOMetrics> {
     const errors: string[] = [];
@@ -49,52 +64,104 @@ export async function getUnifiedSEOMetrics(url: string): Promise<UnifiedSEOMetri
     let keywords = { total: 0, top10: 0, top100: 0, avgPosition: 0, estimatedTraffic: 0 };
     let backlinks = { total: 0, referringDomains: 0, domainRating: 0, domainAuthority: 0 };
 
-    // ===== STEP 1: Try Ahrefs first (best data) =====
-    if (isAhrefsConfigured()) {
-        console.log('🔍 API Manager: Trying Ahrefs...');
+    // ===== STEP 1: Try Common Crawl for backlinks (free, always available) =====
+    // Note: Common Crawl Index API has a limitation - it cannot find backlinks directly
+    // It will return empty results and we'll fall back to Moz API
+    if (isCommonCrawlAvailable()) {
+        console.log('🔍 API Manager: Trying Common Crawl for backlinks...');
         try {
-            const [ahrefsKeywords, ahrefsBacklinks] = await Promise.all([
-                getUrlKeywords(url),
-                getBacklinkMetrics(url)
-            ]);
-
-            // Check for keywords
-            if (!ahrefsKeywords.error && ahrefsKeywords.totalKeywords > 0) {
-                keywords = {
-                    total: ahrefsKeywords.totalKeywords,
-                    top10: ahrefsKeywords.keywords.filter(k => k.position <= 10).length,
-                    top100: ahrefsKeywords.keywords.filter(k => k.position <= 100).length,
-                    avgPosition: ahrefsKeywords.averagePosition,
-                    estimatedTraffic: ahrefsKeywords.estimatedTraffic
-                };
-                keywordSource = 'ahrefs';
-                console.log(`✅ Ahrefs keywords: ${keywords.total} found`);
-            } else if (ahrefsKeywords.error) {
-                errors.push(`Ahrefs keywords: ${ahrefsKeywords.error}`);
-                console.log(`⚠️ Ahrefs keywords failed: ${ahrefsKeywords.error}`);
-            }
-
-            // Check for backlinks
-            if (!ahrefsBacklinks.error && ahrefsBacklinks.referringDomains > 0) {
+            const commonCrawlBacklinks = await getBacklinkMetrics(url);
+            // Common Crawl Index API limitation: cannot find backlinks directly
+            // Check if we got actual data (not just the limitation error)
+            if (!commonCrawlBacklinks.error && commonCrawlBacklinks.referringDomains > 0) {
                 backlinks = {
-                    total: ahrefsBacklinks.backlinks,
-                    referringDomains: ahrefsBacklinks.referringDomains,
-                    domainRating: ahrefsBacklinks.domainRating,
-                    domainAuthority: ahrefsBacklinks.domainRating // Use DR as DA equivalent
+                    total: commonCrawlBacklinks.backlinks,
+                    referringDomains: commonCrawlBacklinks.referringDomains,
+                    domainRating: commonCrawlBacklinks.domainRating, // Always 0 (not available)
+                    domainAuthority: 0 // Will be filled by Moz if available
                 };
-                backlinkSource = 'ahrefs';
-                console.log(`✅ Ahrefs backlinks: ${backlinks.referringDomains} referring domains`);
-            } else if (ahrefsBacklinks.error) {
-                errors.push(`Ahrefs backlinks: ${ahrefsBacklinks.error}`);
-                console.log(`⚠️ Ahrefs backlinks failed: ${ahrefsBacklinks.error}`);
+                backlinkSource = 'commoncrawl';
+                console.log(`✅ Common Crawl backlinks: ${backlinks.referringDomains} referring domains`);
+            } else {
+                // Common Crawl has limitation - silently continue to Moz fallback
+                // Don't log error as this is expected behavior
+                if (commonCrawlBacklinks.error && !commonCrawlBacklinks.error.includes('Index API limitation')) {
+                    // Only log if it's an unexpected error
+                    console.log(`⚠️ Common Crawl: ${commonCrawlBacklinks.error}`);
+                }
             }
         } catch (e: any) {
-            errors.push(`Ahrefs error: ${e.message}`);
-            console.log(`❌ Ahrefs failed: ${e.message}`);
+            // Only log unexpected errors (not connection timeouts which are expected)
+            if (!e.message.includes('timeout') && !e.message.includes('ECONNREFUSED')) {
+                errors.push(`Common Crawl error: ${e.message}`);
+                console.log(`❌ Common Crawl failed: ${e.message}`);
+            }
         }
     }
 
-    // ===== STEP 2: Try DataForSEO if keywords not found =====
+    // ===== STEP 2: Try Google Custom Search API (Keyword Discovery) for keywords =====
+    if (isGoogleCustomSearchConfigured()) {
+        console.log('🔍 API Manager: Trying Google Custom Search (Keyword Discovery) for keywords...');
+        try {
+            // Extract domain from URL
+            let domain = '';
+            try {
+                const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+                domain = urlObj.hostname.replace('www.', '');
+            } catch {
+                domain = url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+            }
+
+            // Get scraping data first (needed for keyword discovery)
+            const { scrapeWebsite } = await import('./scraper');
+            const scrapingData = await scrapeWebsite(url);
+
+            // Use keyword discovery module
+            const discoveryResult = await discoverKeywords(url, domain, scrapingData, 'th');
+            
+            if (discoveryResult.totalKeywordsFound > 0) {
+                // Calculate average position from discovered keywords
+                const allKeywords = discoveryResult.allKeywords || [];
+                const keywordsWithPosition = allKeywords.filter(k => k.position !== null);
+                const avgPosition = keywordsWithPosition.length > 0
+                    ? keywordsWithPosition.reduce((sum, k) => sum + (k.position || 0), 0) / keywordsWithPosition.length
+                    : 0;
+
+                // Convert intent breakdown to percentage format
+                const totalIntent = discoveryResult.intentBreakdown.informational + 
+                                  discoveryResult.intentBreakdown.commercial + 
+                                  discoveryResult.intentBreakdown.transactional + 
+                                  discoveryResult.intentBreakdown.navigational;
+                
+                keywords = {
+                    total: discoveryResult.totalKeywordsFound,
+                    top10: discoveryResult.keywordsInTop10,
+                    top100: discoveryResult.keywordsInTop100,
+                    avgPosition: avgPosition,
+                    estimatedTraffic: 0, // Not available from Custom Search
+                    intentBreakdown: {
+                        informational: discoveryResult.intentBreakdown.informational,
+                        commercial: discoveryResult.intentBreakdown.commercial,
+                        transactional: discoveryResult.intentBreakdown.transactional,
+                        navigational: discoveryResult.intentBreakdown.navigational,
+                        dominant: discoveryResult.intentBreakdown.dominant,
+                        dominantPercent: totalIntent > 0 
+                            ? Math.round(((discoveryResult.intentBreakdown[discoveryResult.intentBreakdown.dominant as 'informational' | 'commercial' | 'transactional' | 'navigational'] || 0) / totalIntent) * 100)
+                            : 0
+                    }
+                } as UnifiedSEOMetrics['keywords'];
+                keywordSource = 'googlecustomsearch';
+                console.log(`✅ Google Custom Search keywords: ${keywords.total} found (${keywords.top10} in top 10, avg position: ${avgPosition.toFixed(1)}, intent: ${discoveryResult.intentBreakdown.dominant})`);
+            } else {
+                console.log(`⚠️ Google Custom Search: No keywords found`);
+            }
+        } catch (e: any) {
+            errors.push(`Google Custom Search keyword discovery error: ${e.message}`);
+            console.log(`❌ Google Custom Search keyword discovery failed: ${e.message}`);
+        }
+    }
+
+    // ===== STEP 3: Try DataForSEO if keywords not found =====
     if (keywordSource === 'estimate' && isDataForSEOConfigured()) {
         console.log('🔄 API Manager: Trying DataForSEO for keywords...');
         try {
@@ -117,20 +184,30 @@ export async function getUnifiedSEOMetrics(url: string): Promise<UnifiedSEOMetri
         }
     }
 
-    // ===== STEP 3: Try Moz if backlinks not found =====
-    if (backlinkSource === 'estimate' && isMozConfigured()) {
-        console.log('🔄 API Manager: Trying Moz for backlinks...');
+    // ===== STEP 4: Try Moz if backlinks not found or to get DA =====
+    if (isMozConfigured()) {
+        console.log('🔄 API Manager: Trying Moz for backlinks/DA...');
         try {
             const moz = await getMozMetrics(url);
             if (moz.domainAuthority > 0 || moz.linkingDomains > 0) {
-                backlinks = {
-                    total: moz.inboundLinks || 0,
-                    referringDomains: moz.linkingDomains || 0,
-                    domainRating: moz.domainAuthority, // Use DA as DR equivalent
-                    domainAuthority: moz.domainAuthority
-                };
-                backlinkSource = 'moz';
-                console.log(`✅ Moz backlinks: DA ${backlinks.domainAuthority}`);
+                // If Common Crawl didn't provide data, use Moz
+                if (backlinkSource === 'estimate') {
+                    backlinks = {
+                        total: moz.inboundLinks || 0,
+                        referringDomains: moz.linkingDomains || 0,
+                        domainRating: moz.domainAuthority, // Use DA as DR equivalent
+                        domainAuthority: moz.domainAuthority
+                    };
+                    backlinkSource = 'moz';
+                    console.log(`✅ Moz backlinks: DA ${backlinks.domainAuthority}`);
+                } else {
+                    // Common Crawl provided data, but add DA from Moz
+                    backlinks.domainAuthority = moz.domainAuthority;
+                    if (backlinks.domainRating === 0) {
+                        backlinks.domainRating = moz.domainAuthority; // Use DA as DR if not available
+                    }
+                    console.log(`✅ Moz DA: ${moz.domainAuthority} (added to Common Crawl data)`);
+                }
             }
         } catch (e: any) {
             errors.push(`Moz error: ${e.message}`);
@@ -197,14 +274,16 @@ function generateBacklinkEstimates(url: string): UnifiedSEOMetrics['backlinks'] 
  * Get API status for debugging
  */
 export function getAPIStatus(): {
-    ahrefs: boolean;
     dataforseo: boolean;
     moz: boolean;
+    commoncrawl: boolean;
+    googleCustomSearch: boolean;
 } {
     return {
-        ahrefs: isAhrefsConfigured(),
         dataforseo: isDataForSEOConfigured(),
-        moz: isMozConfigured()
+        moz: isMozConfigured(),
+        commoncrawl: isCommonCrawlAvailable(),
+        googleCustomSearch: isGoogleCustomSearchConfigured()
     };
 }
 
@@ -223,7 +302,9 @@ export function toKeywordMetrics(unified: UnifiedSEOMetrics): DomainKeywordMetri
         estimatedTraffic: unified.keywords.estimatedTraffic,
         averagePosition: unified.keywords.avgPosition,
         topKeywords: [],
-        trend: 'stable'
+        trend: 'stable',
+        // Include intent breakdown if available from keyword discovery
+        intentBreakdown: unified.keywords.intentBreakdown
     };
 }
 
@@ -236,11 +317,10 @@ export function toMozMetrics(unified: UnifiedSEOMetrics, baseMoz: MozMetrics): M
         domainAuthority: unified.backlinks.domainAuthority || baseMoz.domainAuthority,
         linkingDomains: unified.backlinks.referringDomains || baseMoz.linkingDomains,
         inboundLinks: unified.backlinks.total || baseMoz.inboundLinks,
-        // Add Ahrefs data if available
-        ...(unified.source.backlinks === 'ahrefs' ? {
-            ahrefsBacklinks: unified.backlinks.total,
-            ahrefsReferringDomains: unified.backlinks.referringDomains,
-            ahrefsDomainRating: unified.backlinks.domainRating
+        // Add Common Crawl data if available
+        ...(unified.source.backlinks === 'commoncrawl' ? {
+            commonCrawlBacklinks: unified.backlinks.total,
+            commonCrawlReferringDomains: unified.backlinks.referringDomains
         } : {})
     };
 }

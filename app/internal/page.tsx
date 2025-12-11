@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LoadingPopup from '../components/LoadingPopup';
+import SiteHealth from '../components/SiteHealth';
+import PillarScores from '../components/PillarScores';
 
 interface DomainResult {
   name: string;
@@ -31,7 +33,7 @@ const PILLAR_INFO = {
   contentStructure: {
     name: 'Content Structure',
     color: '#14b8a6',
-    max: 28,
+    max: 25,
     tips: ['Add schema markup', 'Improve heading hierarchy', 'Add image ALT tags']
   },
   brandRanking: {
@@ -55,9 +57,38 @@ const PILLAR_INFO = {
   aiTrust: {
     name: 'AI Trust',
     color: '#3b82f6',
-    max: 23,
+    max: 22,
     tips: ['Add author info (E-E-A-T)', 'Include citations', 'Build quality backlinks']
   }
+};
+
+// Pillar definitions for tooltips
+const PILLAR_DEFINITIONS: Record<string, { title: string; description: string; tips: string }> = {
+  contentStructure: {
+    title: 'Content Structure',
+    description: 'How well your content is organized for AI comprehension: schema markup, headings hierarchy, multimodal content, tables/lists, direct answers, and content depth. Critical for AI Overviews citations.',
+    tips: 'Add FAQ/HowTo/Article schema, use proper H1→H2→H3 hierarchy, include images with alt text, add comparison tables, start with direct answers, and cover topics comprehensively.',
+  },
+  brandRanking: {
+    title: 'Brand Ranking',
+    description: 'Brand signals: your ranking for brand keyword and community sentiment about your brand. Ranking #1 for your brand signals strong authority. Community sentiment (Pantip, Reddit, reviews) overrides PR.',
+    tips: 'Rank #1 for your brand name. Build brand awareness through PR and social media. Monitor and respond to community sentiment on Pantip, Reddit, and review sites.',
+  },
+  websiteTechnical: {
+    title: 'Website Technical',
+    description: 'Core Web Vitals (LCP, INP, CLS), mobile performance, security (SSL/HTTPS), and AI crawler compatibility (LLMs.txt, sitemap). Fast, accessible sites rank better and provide better user experience.',
+    tips: 'Optimize Core Web Vitals (LCP <2.5s, INP ≤200ms, CLS <0.1), ensure mobile responsiveness, use HTTPS, create /llms.txt, and submit valid sitemap.xml to Google Search Console.',
+  },
+  keywordVisibility: {
+    title: 'Keyword Visibility',
+    description: 'Your presence in search results: number of keywords ranking, average position, and search intent match. More keywords = more opportunities. Top 10 positions drive 90%+ of organic traffic.',
+    tips: 'Create comprehensive content targeting multiple keywords. Build topic clusters. Aim for positions 1-10. Align content with search intent (Informational, Commercial, Transactional, Navigational).',
+  },
+  aiTrust: {
+    title: 'AI Trust',
+    description: 'Trustworthiness signals: backlink quality, referring domains, content sentiment, E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness), and local/GEO signals. Critical for YMYL topics.',
+    tips: 'Earn quality backlinks from authoritative sites. Show author credentials and citations. Use professional, helpful tone. Add LocalBusiness schema for local businesses. Build E-E-A-T signals.',
+  },
 };
 
 // Metric definitions/explanations from SKILL.md
@@ -65,132 +96,132 @@ const METRIC_DEFINITIONS: Record<string, { title: string; description: string; t
   // Content Structure
   schema: {
     title: 'Schema Markup',
-    description: 'Structured data (JSON-LD) that helps search engines and AI understand your content.',
+    description: 'Structured data (JSON-LD) that helps search engines and AI understand your content. Critical for AI Overviews citations and rich results.',
     tips: 'Add FAQ, HowTo, Article, or Product schema to earn maximum points. Use Google\'s Structured Data Testing Tool to validate.',
   },
   tableLists: {
     title: 'Tables & Lists',
-    description: 'Structured content formats that AI can easily parse and extract information from.',
-    tips: 'Include comparison tables, feature lists, and bullet points. AI assistants often pull data directly from tables.',
+    description: 'Structured content formats that AI can easily parse and extract information from. AI assistants often pull data directly from tables.',
+    tips: 'Include comparison tables, feature lists, and bullet points. Tables increase chances of being cited in AI responses.',
   },
   headings: {
     title: 'Heading Structure',
-    description: 'Proper HTML heading hierarchy (H1 → H2 → H3) that creates a clear content outline.',
+    description: 'Proper HTML heading hierarchy (H1 → H2 → H3) that creates a clear content outline. Helps AI understand content structure and extract key information.',
     tips: 'Use exactly one H1 per page. Follow with H2s for main sections and H3s for subsections. Never skip heading levels.',
   },
   multimodal: {
     title: 'Multimodal Content',
-    description: 'Different content types (images, videos, infographics) that enhance understanding.',
-    tips: 'Add images with descriptive alt text, embed relevant videos, and include infographics. This signals comprehensive content to AI.',
+    description: 'Different content types (images, videos, infographics) that enhance understanding. AI systems use images (via alt text) and videos (via transcripts) to understand content better.',
+    tips: 'Add images with descriptive alt text, embed relevant videos with transcripts, and include infographics. Multimodal content increases AI citation probability by 25%+.',
   },
   directAnswer: {
     title: 'Direct Answer (TL;DR)',
-    description: 'Clear, concise answers at the beginning of content that AI can easily extract.',
-    tips: 'Start your content with a brief summary or direct answer to the main question. This increases chances of being featured in AI responses.',
+    description: 'Clear, concise answers at the beginning of content that AI can easily extract. AI systems prioritize content that answers queries in the first 50-100 words.',
+    tips: 'Start your content with a brief summary or direct answer to the main question. Use the "inverted pyramid" approach (answer first, details later).',
   },
   contentGap: {
     title: 'Content Depth',
-    description: 'Comprehensive coverage of a topic compared to competitors.',
-    tips: 'Cover all aspects of your topic thoroughly. Use tools like "People Also Ask" to find related questions to answer.',
+    description: 'Comprehensive coverage of a topic compared to competitors. More thorough content signals authority and increases chances of being cited by AI.',
+    tips: 'Cover all aspects of your topic thoroughly. Use tools like "People Also Ask" to find related questions to answer. Aim for 2,000+ words for comprehensive topics.',
   },
   imageAlt: {
     title: 'Image ALT Tags',
-    description: 'Descriptive text for images that helps accessibility and AI understanding.',
-    tips: 'Add descriptive alt text to all images. This helps AI understand visual content and improves accessibility.',
+    description: 'Descriptive text for images that helps accessibility and AI understanding. AI can extract information from images via alt text, enabling visual content citations.',
+    tips: 'Add descriptive alt text to all images >200px. Describe what the image shows in detail (not just "image" or "photo"). Aim for 80%+ coverage.',
   },
   // Website Technical
   lcp: {
     title: 'LCP (Largest Contentful Paint)',
-    description: 'Time it takes for the largest visible element to load.',
-    tips: 'Target: < 2.5 seconds for full score. Optimize images, use CDN, preload critical resources.',
+    description: 'Time it takes for the largest visible element to load. Measures loading performance - when main content becomes visible. Critical Core Web Vitals metric.',
+    tips: 'Target: < 2.5 seconds for full score. Optimize images (WebP/AVIF), use CDN, preload LCP image, minimize server response time (TTFB < 800ms).',
   },
   inp: {
     title: 'INP (Interaction to Next Paint)',
-    description: 'Time from user interaction to browser response.',
-    tips: 'Target: ≤ 200ms. Minimize JavaScript, break up long tasks, defer non-critical scripts.',
+    description: 'Time from user interaction to browser response. Measures responsiveness - how quickly the page responds to clicks, taps, or keyboard input. Replaces FID in 2024.',
+    tips: 'Target: ≤ 200ms for full score. Minimize JavaScript, break up long tasks (>50ms), defer non-critical scripts, use web workers for heavy computations.',
   },
   cls: {
     title: 'CLS (Cumulative Layout Shift)',
-    description: 'Measures visual stability - how much elements shift during page load.',
-    tips: 'Target: < 0.1 for full score. Set explicit dimensions for images/videos, avoid inserting content above existing content.',
+    description: 'Measures visual stability - how much elements shift during page load. Prevents unexpected layout jumps that hurt user experience.',
+    tips: 'Target: < 0.1 for full score. Set explicit width/height on images/videos, reserve space for ads/embeds, use font-display: swap for web fonts.',
   },
   mobile: {
     title: 'Mobile Performance',
-    description: 'How well your site performs on mobile devices.',
-    tips: 'Use responsive design, optimize touch targets (48px minimum), test on real devices.',
+    description: 'How well your site performs on mobile devices. Most searches happen on mobile - poor mobile experience hurts rankings and user satisfaction.',
+    tips: 'Use responsive design, optimize touch targets (48px minimum), test on real devices, minimize mobile-specific JavaScript.',
   },
   ssl: {
     title: 'SSL/HTTPS Security',
-    description: 'Secure connection that encrypts data between users and your website.',
-    tips: 'HTTPS required for full score. Install SSL certificate (free via Let\'s Encrypt).',
+    description: 'Secure connection that encrypts data between users and your website. Required for rankings and user trust. Google penalizes non-HTTPS sites.',
+    tips: 'HTTPS required for full score. Install SSL certificate (free via Let\'s Encrypt). Ensure all resources load over HTTPS (no mixed content).',
   },
   brokenLinks: {
     title: 'Link Health',
-    description: 'Quality of internal and external links - no broken links.',
-    tips: 'Regularly audit links. Fix 404 errors and minimize redirect chains.',
+    description: 'Quality of internal and external links - no broken links. Broken links hurt user experience, crawlability, and can reduce trust signals.',
+    tips: 'Regularly audit links. Fix 404 errors and minimize redirect chains. Use tools like Screaming Frog or Ahrefs to find broken links.',
   },
   llmsTxt: {
     title: 'LLMs.txt',
-    description: 'AI-friendly file that helps LLM crawlers understand your site.',
-    tips: 'Create /llms.txt or /llms-full.txt at your domain root. This helps AI systems discover and understand your content.',
+    description: 'AI-friendly file that helps LLM crawlers understand your site. Similar to robots.txt but for AI systems. Helps AI discover and understand your content structure.',
+    tips: 'Create /llms.txt or /llms-full.txt at your domain root. Include sitemap URLs, important pages, and content guidelines. This helps AI systems discover your content.',
   },
   sitemap: {
     title: 'Sitemap.xml',
-    description: 'XML sitemap with all required elements for proper indexing.',
-    tips: 'Must include: urlset, loc, lastmod, changefreq, priority. Submit to Google Search Console.',
+    description: 'XML sitemap with all required elements for proper indexing. Helps search engines and AI crawlers discover all your important pages efficiently.',
+    tips: 'Must include: urlset, loc, lastmod, changefreq, priority. Submit to Google Search Console. Keep sitemap updated when pages change.',
   },
   // Brand Ranking
   brandSearch: {
     title: 'Branded Search Rank',
-    description: 'Your ranking for your brand name keyword.',
-    tips: 'Rank #1 for your brand name. Build brand awareness through PR and social.',
+    description: 'Your ranking for your brand name keyword. Ranking #1 for your brand signals strong brand authority and trust. Critical for brand recognition.',
+    tips: 'Rank #1 for your brand name. Build brand awareness through PR, social media, and consistent branding. Monitor brand search volume monthly.',
   },
   brandSentiment: {
     title: 'Brand Sentiment',
-    description: 'Public sentiment about your brand from community sources.',
-    tips: 'Monitor Pantip, Reddit, reviews. Community sentiment overrides PR.',
+    description: 'Public sentiment about your brand from community sources (Pantip, Reddit, reviews). Community sentiment overrides PR - real user opinions matter more.',
+    tips: 'Monitor Pantip, Reddit, review sites. Respond to negative sentiment professionally. Build positive community presence through authentic engagement.',
   },
   // Keyword Visibility
   keywords: {
     title: 'Organic Keywords Count',
-    description: 'Number of keywords your site ranks for in search results.',
-    tips: 'Create content targeting relevant keywords. Focus on long-tail keywords.',
+    description: 'Number of keywords your site ranks for in search results. More keywords = more opportunities to rank and drive traffic. Keyword diversity reduces dependency on single rankings.',
+    tips: 'Create comprehensive content targeting multiple related keywords. Build topic clusters. Target long-tail keywords (3-5 word phrases) for easier wins. Aim for 100+ keywords.',
   },
   positions: {
     title: 'Average Position',
-    description: 'Average ranking position for your keywords.',
-    tips: 'Aim for positions 1-10. Improve content quality and relevance.',
+    description: 'Average ranking position across all your keywords. Lower is better (position 1 = top). Top 10 positions drive 90%+ of organic traffic.',
+    tips: 'Aim for positions 1-10. Improve content quality, relevance, and E-E-A-T signals. Monitor position changes monthly and optimize pages losing positions.',
   },
   intentMatch: {
     title: 'Search Intent Match',
-    description: 'How well your content matches user search intent.',
-    tips: 'Align content with: Informational, Commercial, Transactional, or Navigational intent.',
+    description: 'How well your content matches user search intent (Informational, Commercial, Transactional, Navigational). Matching intent increases click-through rates and conversions.',
+    tips: 'Align content with search intent: Informational (guides, how-tos), Commercial (comparisons, reviews), Transactional (buy, sign up), Navigational (find website).',
   },
   // AI Trust
   backlinks: {
     title: 'Backlink Quality',
-    description: 'Links from other websites pointing to yours.',
-    tips: 'Focus on earning links from authoritative, relevant sites.',
+    description: 'Links from other websites pointing to yours. Quality backlinks from authoritative, relevant sites signal trust and authority to search engines and AI systems.',
+    tips: 'Focus on earning links from authoritative, relevant sites. Avoid spam links. Quality over quantity - 10 quality links beat 1000 spam links.',
   },
   referringDomains: {
     title: 'Referring Domains',
-    description: 'Number of unique websites linking to you.',
-    tips: 'Aim for links from many different domains.',
+    description: 'Number of unique websites linking to you. More diverse referring domains signal broader authority and trust. Better than many links from few domains.',
+    tips: 'Aim for links from many different domains. Build relationships, create linkable assets, engage in digital PR. Target 50+ referring domains for competitive keywords.',
   },
   sentiment: {
-    title: 'Content Sentiment',
-    description: 'How professional and positive your content tone is.',
-    tips: 'Use professional language. Avoid aggressive sales tactics.',
+    title: 'AI Sentiment Score',
+    description: 'How professional and positive your content tone is. AI systems evaluate sentiment when deciding whether to cite content. Professional, helpful tone performs better.',
+    tips: 'Use professional, helpful language. Avoid aggressive sales tactics. Focus on providing value and solving problems. Positive sentiment increases AI citation chances.',
   },
   eeat: {
     title: 'E-E-A-T Signals',
-    description: 'Experience, Expertise, Authoritativeness, Trustworthiness.',
-    tips: 'Show author, bio, credentials, citations, and dates.',
+    description: 'Experience, Expertise, Authoritativeness, Trustworthiness. Critical for YMYL (Your Money Your Life) topics. Shows Google and AI that your content is credible and trustworthy.',
+    tips: 'Show author bio with credentials, include publication dates, cite authoritative sources, add author photos. For YMYL topics, require expert authors with verifiable credentials.',
   },
   local: {
     title: 'Local/GEO Signals',
-    description: 'Signals for local search and location-based AI results.',
-    tips: 'Add LocalBusiness OR Organization schema, Google Maps, NAP.',
+    description: 'Signals for local search and location-based AI results. Important for businesses serving specific geographic areas. Helps AI understand your location and service area.',
+    tips: 'Add LocalBusiness OR Organization schema with address, add Google Maps embed, include NAP (Name, Address, Phone) consistently across site, create location-specific pages.',
   },
 };
 
@@ -216,6 +247,8 @@ export default function InternalDashboard() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Starting analysis...');
+  const progressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isCompleteRef = useRef(false);
 
   useEffect(() => { checkAuth(); }, []);
 
@@ -223,8 +256,16 @@ export default function InternalDashboard() {
   useEffect(() => {
     if (!analyzing) {
       setProgress(0);
+      isCompleteRef.current = false;
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+        progressTimeoutRef.current = null;
+      }
       return;
     }
+
+    // Reset completion flag
+    isCompleteRef.current = false;
 
     // Calculate total URLs to analyze
     const mainUrlList = parseUrls(mainUrls).slice(0, 30);
@@ -251,6 +292,15 @@ export default function InternalDashboard() {
     let completedUrls = 0;
     
     const updateProgress = () => {
+      // Stop if API response is complete
+      if (isCompleteRef.current) {
+        if (progressTimeoutRef.current) {
+          clearTimeout(progressTimeoutRef.current);
+          progressTimeoutRef.current = null;
+        }
+        return;
+      }
+
       if (completedUrls < totalUrls) {
         // Calculate progress: 1% start + (completed/total) * 99%
         const progressPercent = 1 + Math.floor((completedUrls / totalUrls) * 99);
@@ -267,8 +317,8 @@ export default function InternalDashboard() {
         completedUrls++;
         
         // Update every 500ms to simulate URL analysis
-        if (completedUrls <= totalUrls) {
-          setTimeout(updateProgress, 500);
+        if (completedUrls <= totalUrls && !isCompleteRef.current) {
+          progressTimeoutRef.current = setTimeout(updateProgress, 500);
         }
       } else {
         setProgress(100);
@@ -277,7 +327,14 @@ export default function InternalDashboard() {
     };
 
     // Start progress updates after a short delay
-    setTimeout(updateProgress, 500);
+    progressTimeoutRef.current = setTimeout(updateProgress, 500);
+
+    return () => {
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+        progressTimeoutRef.current = null;
+      }
+    };
   }, [analyzing, mainUrls, competitors]);
 
   const checkAuth = async () => {
@@ -308,6 +365,7 @@ export default function InternalDashboard() {
     setAnalyzing(true);
     setError('');
     setResults(null);
+    isCompleteRef.current = false;
 
     try {
       const mainUrlList = parseUrls(mainUrls).slice(0, 30);
@@ -326,6 +384,13 @@ export default function InternalDashboard() {
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Analysis failed');
+
+      // Mark as complete and stop progress simulation
+      isCompleteRef.current = true;
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+        progressTimeoutRef.current = null;
+      }
 
       const formattedResults: DomainResult[] = [
         {
@@ -348,14 +413,20 @@ export default function InternalDashboard() {
 
       setResults(formattedResults.slice(0, 5));
       setExpandedDomain(0);
-      // Set progress to 100% only when results are ready
+      // Set progress to 100% immediately when results are ready
       setProgress(100);
       setStatusMessage('Audit Complete! Meow!');
-      // Small delay to show 100% before closing popup
+      
+      // Close popup immediately after a very short delay for smooth transition
       setTimeout(() => {
         setAnalyzing(false);
-      }, 1000);
+      }, 200);
     } catch (err: any) {
+      isCompleteRef.current = true;
+      if (progressTimeoutRef.current) {
+        clearTimeout(progressTimeoutRef.current);
+        progressTimeoutRef.current = null;
+      }
       setError(err.message);
       setProgress(0);
       setStatusMessage('Analysis failed');
@@ -388,9 +459,10 @@ export default function InternalDashboard() {
 <head>
   <meta charset="UTF-8">
   <title>SAO Auditor Report - ${reportDate}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; }
+    body { font-family: 'Inter'; background: #0f172a; color: #e2e8f0; padding: 40px; }
     .header { text-align: center; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 3px solid #10b981; }
     .header h1 { color: #10b981; font-size: 36px; margin-bottom: 8px; }
     .header p { color: #94a3b8; font-size: 14px; }
@@ -450,32 +522,32 @@ export default function InternalDashboard() {
     <div class="pillars">
       <div class="pillar">
         <div class="pillar-name">Content Structure</div>
-        <div class="pillar-score teal">${d.averageScore.contentStructure}/30</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.contentStructure / 30) * 100}%;background:#14b8a6"></div></div>
+        <div class="pillar-score teal">${d.averageScore.contentStructure}/25</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.contentStructure / 25) * 100}%;background:#14b8a6"></div></div>
         <div class="pillar-insight">Schema, Headings, ALT, Tables, Direct Answer</div>
       </div>
       <div class="pillar">
         <div class="pillar-name">Brand Ranking</div>
-        <div class="pillar-score lime">${d.averageScore.brandRanking}/10</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.brandRanking / 10) * 100}%;background:#84cc16"></div></div>
+        <div class="pillar-score lime">${d.averageScore.brandRanking}/9</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.brandRanking / 9) * 100}%;background:#84cc16"></div></div>
         <div class="pillar-insight">Brand Search Rank, Sentiment</div>
       </div>
       <div class="pillar">
         <div class="pillar-name">Website Technical</div>
-        <div class="pillar-score cyan">${d.averageScore.websiteTechnical || 0}/18</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${((d.averageScore.websiteTechnical || 0) / 18) * 100}%;background:#06b6d4"></div></div>
+        <div class="pillar-score cyan">${d.averageScore.websiteTechnical || 0}/17</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${((d.averageScore.websiteTechnical || 0) / 17) * 100}%;background:#06b6d4"></div></div>
         <div class="pillar-insight">LCP, INP, CLS, SSL, LLMs.txt, Sitemap</div>
       </div>
       <div class="pillar">
         <div class="pillar-name">Keyword Visibility</div>
-        <div class="pillar-score pink">${d.averageScore.keywordVisibility}/25</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.keywordVisibility / 25) * 100}%;background:#ec4899"></div></div>
+        <div class="pillar-score pink">${d.averageScore.keywordVisibility}/23</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.keywordVisibility / 23) * 100}%;background:#ec4899"></div></div>
         <div class="pillar-insight">Keywords, Avg Position, Intent Match</div>
       </div>
       <div class="pillar">
         <div class="pillar-name">AI Trust</div>
-        <div class="pillar-score blue">${d.averageScore.aiTrust}/25</div>
-        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.aiTrust / 25) * 100}%;background:#3b82f6"></div></div>
+        <div class="pillar-score blue">${d.averageScore.aiTrust}/22</div>
+        <div class="pillar-bar"><div class="pillar-fill" style="width:${(d.averageScore.aiTrust / 22) * 100}%;background:#3b82f6"></div></div>
         <div class="pillar-insight">Backlinks, E-E-A-T, Sentiment, Local</div>
       </div>
     </div>
@@ -501,7 +573,7 @@ export default function InternalDashboard() {
   <div class="comparison">
     <h2>📊 5-Pillar Comparison</h2>
     <table>
-      <tr><th>Domain</th><th>Total</th><th>Content<br/>/30</th><th>Brand<br/>/10</th><th>Technical<br/>/18</th><th>Keywords<br/>/25</th><th>AI Trust<br/>/25</th></tr>
+      <tr><th>Domain</th><th>Total</th><th>Content<br/>/25</th><th>Brand<br/>/9</th><th>Technical<br/>/17</th><th>Keywords<br/>/23</th><th>AI Trust<br/>/22</th></tr>
       ${results.map((d, i) => `
       <tr>
         <td>${i === 0 ? '🏠' : '🏢'} ${d.name}</td>
@@ -745,11 +817,11 @@ export default function InternalDashboard() {
 
                   {/* Pillar Bars - Direct 100-point system */}
                   <div className="space-y-2">
-                    <PillarBar label="Content Structure" value={domain.averageScore.contentStructure} max={28} color="#14b8a6" />
+                    <PillarBar label="Content Structure" value={domain.averageScore.contentStructure} max={25} color="#14b8a6" />
                     <PillarBar label="Brand Ranking" value={domain.averageScore.brandRanking} max={9} color="#84cc16" />
                     <PillarBar label="Website Technical" value={domain.averageScore.websiteTechnical || 0} max={17} color="#06b6d4" />
                     <PillarBar label="Keyword Visibility" value={domain.averageScore.keywordVisibility} max={23} color="#ec4899" />
-                    <PillarBar label="AI Trust" value={domain.averageScore.aiTrust} max={23} color="#3b82f6" />
+                    <PillarBar label="AI Trust" value={domain.averageScore.aiTrust} max={22} color="#3b82f6" />
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-300 text-center">
@@ -782,78 +854,22 @@ export default function InternalDashboard() {
                     <button onClick={() => setExpandedDomain(null)} className="text-slate-600 hover:text-slate-800 text-xl">✕</button>
                   </div>
 
-                  {/* Top Cards Row - Site Health + Errors/Warnings/Notices */}
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-                    {/* Site Health Card */}
-                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-                      <div className="text-sm text-slate-700 mb-4">Site Health</div>
-                      <div className="relative flex items-center justify-center mb-4" style={{ height: '80px' }}>
-                        {/* Semi-circular progress bar */}
-                        <svg className="w-full h-full" viewBox="0 0 200 100" style={{ height: '80px' }}>
-                          {/* Background arc */}
-                          <path
-                            d="M 20 80 A 80 80 0 0 1 180 80"
-                            fill="none"
-                            stroke="#e5e7eb"
-                            strokeWidth="12"
-                            strokeLinecap="round"
-                          />
-                          {/* Progress arc */}
-                          <path
-                            d="M 20 80 A 80 80 0 0 1 180 80"
-                            fill="none"
-                            stroke={domainScore >= 70 ? '#10b981' : domainScore >= 50 ? '#eab308' : '#ef4444'}
-                            strokeWidth="12"
-                            strokeLinecap="round"
-                            strokeDasharray={`${(domainScore / 100) * 251.2} 251.2`}
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center" style={{ top: '20px' }}>
-                          <div className="text-center">
-                            <div className="text-3xl font-bold text-slate-800">{domainScore}%</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          <span className="text-slate-700">{domain.name}</span>
-                          <span className="font-semibold text-slate-800">{domainScore}%</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                          <span className="text-slate-700">Top-10% websites</span>
-                          <span className="font-semibold text-slate-800">92%</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Errors Card */}
-                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-                      <div className="text-sm text-slate-700 mb-2">Errors</div>
-                      <div className="text-3xl font-bold text-red-600 mb-1">
-                        {recommendations.filter((r: any) => r.priority === 'HIGH').length}
-                      </div>
-                      <div className="text-xs text-slate-600">Critical issues found</div>
-                    </div>
-
-                    {/* Warnings Card */}
-                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-                      <div className="text-sm text-slate-700 mb-2">Warnings</div>
-                      <div className="text-3xl font-bold text-orange-600 mb-1">
-                        {recommendations.filter((r: any) => r.priority === 'MEDIUM').length}
-                      </div>
-                      <div className="text-xs text-slate-600">Needs attention</div>
-                    </div>
-
-                    {/* Notices Card */}
-                    <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-                      <div className="text-sm text-slate-700 mb-2">Notices</div>
-                      <div className="text-3xl font-bold text-blue-600 mb-1">
-                        {recommendations.filter((r: any) => r.priority === 'LOW').length}
-                      </div>
-                      <div className="text-xs text-slate-600">Optimization tips</div>
-                    </div>
+                  {/* Site Health and Summary - Side by side on desktop, stacked on mobile */}
+                  <div className="mb-6 flex flex-col lg:flex-row gap-6">
+                    <SiteHealth
+                      score={domainScore}
+                      errors={recommendations.filter((r: any) => r.priority === 'HIGH').length}
+                      warnings={recommendations.filter((r: any) => r.priority === 'MEDIUM').length}
+                      notices={recommendations.filter((r: any) => r.priority === 'LOW').length}
+                    />
+                    <PillarScores
+                      totalScore={domainScore}
+                      contentStructure={domain.averageScore.contentStructure}
+                      brandRanking={domain.averageScore.brandRanking}
+                      websiteTechnical={domain.averageScore.websiteTechnical || 0}
+                      keywordVisibility={domain.averageScore.keywordVisibility}
+                      aiTrust={domain.averageScore.aiTrust}
+                    />
                   </div>
 
                   {/* Warning card when data sources are missing */}
@@ -938,7 +954,8 @@ export default function InternalDashboard() {
                             
                             // For Brand Ranking, show metrics even if they don't exist (they'll be 0)
                             const itemScore = metric ? (typeof metric === 'number' ? metric : (metric.score ?? 0)) : 0;
-                            const itemPercentage = Math.round((itemScore / max) * 100);
+                            const cappedScore = Math.min(itemScore, max); // Cap score at max
+                            const itemPercentage = Math.round((cappedScore / max) * 100);
                             const itemValue = metric && typeof metric === 'object' ? metric.value : undefined;
                             const insight = metric && typeof metric === 'object' ? metric.insight : undefined;
                             const recommendation = metric && typeof metric === 'object' ? metric.recommendation : undefined;
@@ -961,7 +978,7 @@ export default function InternalDashboard() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <div className="text-xs text-slate-500">
-                                      {itemScore.toFixed(1)}/{max} pts ({itemPercentage}%)
+                                      {cappedScore.toFixed(1)}/{max} pts ({itemPercentage}%)
                                     </div>
                                     <div className={`px-2 py-1 rounded text-xs font-semibold ${
                                       itemPercentage >= 70 ? 'bg-green-100 text-green-700' :
@@ -997,7 +1014,7 @@ export default function InternalDashboard() {
                                       </span>
                                     ) : (
                                       <span>
-                                        {label} scored {itemScore.toFixed(1)}/{max} points.
+                                        {label} scored {cappedScore.toFixed(1)}/{max} points.
                                       </span>
                                     )}
                                   </div>
@@ -1142,11 +1159,11 @@ export default function InternalDashboard() {
                             domain.averageScore.total >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                             }`}>{domain.averageScore.total}</span>
                         </td>
-                        <td className="py-4 text-center text-[#14b8a6] font-medium">{domain.averageScore.contentStructure}/28</td>
+                        <td className="py-4 text-center text-[#14b8a6] font-medium">{domain.averageScore.contentStructure}/25</td>
                         <td className="py-4 text-center text-[#84cc16] font-medium">{domain.averageScore.brandRanking}/9</td>
                         <td className="py-4 text-center text-[#06b6d4] font-medium">{domain.averageScore.websiteTechnical || 0}/17</td>
                         <td className="py-4 text-center text-[#ec4899] font-medium">{domain.averageScore.keywordVisibility}/23</td>
-                        <td className="py-4 text-center text-[#3b82f6] font-medium">{domain.averageScore.aiTrust}/23</td>
+                        <td className="py-4 text-center text-[#3b82f6] font-medium">{domain.averageScore.aiTrust}/22</td>
                       </tr>
                     ))}
                   </tbody>

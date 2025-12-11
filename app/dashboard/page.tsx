@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 
 interface Scan {
   id: string;
@@ -28,7 +27,6 @@ export default function DashboardPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     checkUser();
@@ -36,27 +34,37 @@ export default function DashboardPage() {
   }, []);
 
   async function checkUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) {
+        router.push('/login?redirect=/dashboard');
+        return;
+      }
+      const data = await res.json();
+      setUser(data.user);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error checking user:', error);
       router.push('/login?redirect=/dashboard');
-      return;
     }
-    setUser(user);
-    setLoading(false);
   }
 
   async function loadScans() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const res = await fetch(`/api/scan?userId=${user.id}`);
-        if (res.ok) {
-          const data = await res.json();
+      const res = await fetch(`/api/scan?userId=admin`);
+      if (res.ok) {
+        const data = await res.json();
+        // Ensure data is an array
+        if (Array.isArray(data)) {
           setScans(data);
+        } else {
+          // If API returns status object, set empty array
+          setScans([]);
         }
       }
     } catch (error) {
       console.error('Error loading scans:', error);
+      setScans([]); // Set empty array on error
     }
   }
 
@@ -73,7 +81,7 @@ export default function DashboardPage() {
         body: JSON.stringify({
           url,
           competitors: validCompetitors,
-          userId: user?.id
+          userId: 'admin'
         }),
       });
 
@@ -106,8 +114,9 @@ export default function DashboardPage() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/');
+    router.refresh();
   }
 
   if (loading) {
@@ -121,16 +130,16 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#e0f2fe' }}>
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-lg">
+      <header className="border-b border-slate-300 bg-white/80 backdrop-blur-lg shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-xl font-bold text-white flex items-center gap-2">
+          <Link href="/" className="text-xl font-bold text-slate-800 flex items-center gap-2">
             🛠️ HAS Scorecard
           </Link>
           <div className="flex items-center gap-4">
-            <span className="text-slate-400 text-sm">{user?.email}</span>
+            <span className="text-slate-700 text-sm">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="text-sm text-slate-400 hover:text-white"
+              className="text-sm text-slate-700 hover:text-slate-900 font-medium"
             >
               Logout
             </button>
@@ -140,24 +149,24 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* New Scan Form */}
-        <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 mb-8 border border-white/10">
-          <h2 className="text-xl font-bold text-white mb-4">New Analysis</h2>
+        <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 mb-8 border border-slate-300 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">New Analysis</h2>
           <form onSubmit={handleScan} className="space-y-4">
             <div>
-              <label className="block text-sm text-slate-400 mb-2">Website URL</label>
+              <label className="block text-sm text-slate-700 mb-2 font-medium">Website URL</label>
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com"
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
 
             {/* Competitors */}
             <div>
-              <label className="block text-sm text-slate-400 mb-2">
+              <label className="block text-sm text-slate-700 mb-2 font-medium">
                 Competitors (Optional, max 4)
               </label>
               {competitors.map((comp, idx) => (
@@ -167,12 +176,12 @@ export default function DashboardPage() {
                     value={comp}
                     onChange={(e) => updateCompetitor(idx, e.target.value)}
                     placeholder={`Competitor ${idx + 1} URL`}
-                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
                     type="button"
                     onClick={() => removeCompetitor(idx)}
-                    className="px-3 py-2 text-red-400 hover:text-red-300"
+                    className="px-3 py-2 text-red-600 hover:text-red-700"
                   >
                     ×
                   </button>
@@ -182,7 +191,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={addCompetitor}
-                  className="text-sm text-blue-400 hover:text-blue-300"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   + Add Competitor
                 </button>
@@ -208,9 +217,9 @@ export default function DashboardPage() {
 
         {/* Scan Result */}
         {scanResult && (
-          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 mb-8 border border-white/10">
+          <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 mb-8 border border-slate-300 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-white">Latest Result</h2>
+              <h2 className="text-xl font-bold text-slate-800">Latest Result</h2>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                 scanResult.score >= 70 ? 'bg-green-500/20 text-green-400' :
                 scanResult.score >= 50 ? 'bg-yellow-500/20 text-yellow-400' :
@@ -241,26 +250,26 @@ export default function DashboardPage() {
 
             {/* Comparison */}
             {scanResult.comparison && (
-              <div className="bg-white/5 rounded-lg p-4 mb-6">
-                <h3 className="text-lg font-semibold text-white mb-3">Competitor Comparison</h3>
+              <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">Competitor Comparison</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-400">#{scanResult.comparison.rank}</div>
-                    <div className="text-xs text-slate-400">Your Rank</div>
+                    <div className="text-2xl font-bold text-blue-600">#{scanResult.comparison.rank}</div>
+                    <div className="text-xs text-slate-700">Your Rank</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">{scanResult.score}</div>
-                    <div className="text-xs text-slate-400">Your Score</div>
+                    <div className="text-2xl font-bold text-slate-800">{scanResult.score}</div>
+                    <div className="text-xs text-slate-700">Your Score</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-slate-400">{scanResult.comparison.avgCompetitorScore}</div>
-                    <div className="text-xs text-slate-400">Avg Competitor</div>
+                    <div className="text-2xl font-bold text-slate-700">{scanResult.comparison.avgCompetitorScore}</div>
+                    <div className="text-xs text-slate-700">Avg Competitor</div>
                   </div>
                   <div className="text-center">
-                    <div className={`text-2xl font-bold ${scanResult.score > scanResult.comparison.avgCompetitorScore ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className={`text-2xl font-bold ${scanResult.score > scanResult.comparison.avgCompetitorScore ? 'text-green-600' : 'text-red-600'}`}>
                       {scanResult.score - scanResult.comparison.avgCompetitorScore > 0 ? '+' : ''}{scanResult.score - scanResult.comparison.avgCompetitorScore}
                     </div>
-                    <div className="text-xs text-slate-400">Difference</div>
+                    <div className="text-xs text-slate-700">Difference</div>
                   </div>
                 </div>
               </div>
@@ -268,22 +277,22 @@ export default function DashboardPage() {
 
             {/* Recommendations */}
             <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Top Recommendations</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-3">Top Recommendations</h3>
               <div className="space-y-2">
                 {scanResult.recommendations.slice(0, 5).map((rec: any, idx: number) => (
                   <div
                     key={idx}
                     className={`p-3 rounded-lg border-l-4 ${
-                      rec.priority === 'HIGH' ? 'bg-red-500/10 border-red-500' :
-                      rec.priority === 'MEDIUM' ? 'bg-yellow-500/10 border-yellow-500' :
-                      'bg-green-500/10 border-green-500'
+                      rec.priority === 'HIGH' ? 'bg-red-50 border-red-500' :
+                      rec.priority === 'MEDIUM' ? 'bg-yellow-50 border-yellow-500' :
+                      'bg-green-50 border-green-500'
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       <span>{rec.priority === 'HIGH' ? '🔴' : rec.priority === 'MEDIUM' ? '🟡' : '🟢'}</span>
                       <div>
-                        <div className="text-white font-medium">{rec.title}</div>
-                        <div className="text-sm text-slate-400">{rec.description}</div>
+                        <div className="text-slate-800 font-medium">{rec.title}</div>
+                        <div className="text-sm text-slate-700">{rec.description}</div>
                       </div>
                     </div>
                   </div>
@@ -294,15 +303,15 @@ export default function DashboardPage() {
         )}
 
         {/* Scan History */}
-        <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
-          <h2 className="text-xl font-bold text-white mb-4">Scan History</h2>
+        <div className="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-slate-300 shadow-sm">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">Scan History</h2>
           {scans.length === 0 ? (
-            <p className="text-slate-400 text-center py-8">No scans yet. Start your first analysis above!</p>
+            <p className="text-slate-700 text-center py-8">No scans yet. Start your first analysis above!</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-slate-400 text-sm border-b border-white/10">
+                  <tr className="text-left text-slate-700 text-sm border-b border-slate-300 font-medium">
                     <th className="pb-3">URL</th>
                     <th className="pb-3">Score</th>
                     <th className="pb-3">Content</th>
@@ -314,27 +323,27 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {scans.map((scan) => (
-                    <tr key={scan.id} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="py-3 text-white">
+                    <tr key={scan.id} className="border-b border-slate-200 hover:bg-slate-50">
+                      <td className="py-3 text-slate-800">
                         <div className="max-w-[200px] truncate">{scan.url}</div>
                         {scan.competitors?.length > 0 && (
-                          <span className="text-xs text-slate-400">+{scan.competitors.length} competitors</span>
+                          <span className="text-xs text-slate-600">+{scan.competitors.length} competitors</span>
                         )}
                       </td>
                       <td className="py-3">
                         <span className={`font-bold ${
-                          scan.totalScore >= 70 ? 'text-green-400' :
-                          scan.totalScore >= 50 ? 'text-yellow-400' :
-                          'text-red-400'
+                          scan.totalScore >= 70 ? 'text-green-600' :
+                          scan.totalScore >= 50 ? 'text-yellow-600' :
+                          'text-red-600'
                         }`}>
                           {scan.totalScore}
                         </span>
                       </td>
-                      <td className="py-3 text-slate-300">{scan.contentStructureScore}/30</td>
-                      <td className="py-3 text-slate-300">{scan.brandRankingScore}/30</td>
-                      <td className="py-3 text-slate-300">{scan.keywordVisibilityScore}/20</td>
-                      <td className="py-3 text-slate-300">{scan.aiTrustScore}/20</td>
-                      <td className="py-3 text-slate-400 text-sm">
+                      <td className="py-3 text-slate-700">{scan.contentStructureScore}/30</td>
+                      <td className="py-3 text-slate-700">{scan.brandRankingScore}/30</td>
+                      <td className="py-3 text-slate-700">{scan.keywordVisibilityScore}/20</td>
+                      <td className="py-3 text-slate-700">{scan.aiTrustScore}/20</td>
+                      <td className="py-3 text-slate-600 text-sm">
                         {new Date(scan.createdAt).toLocaleDateString()}
                       </td>
                     </tr>
@@ -361,10 +370,10 @@ function ScoreBar({ label, score, max, color }: { label: string; score: number; 
   return (
     <div>
       <div className="flex justify-between mb-1">
-        <span className="text-sm text-slate-300">{label}</span>
-        <span className="text-sm text-white font-medium">{score}/{max}</span>
+        <span className="text-sm text-slate-700 font-medium">{label}</span>
+        <span className="text-sm text-slate-800 font-medium">{score}/{max}</span>
       </div>
-      <div className="w-full bg-white/10 rounded-full h-2">
+      <div className="w-full bg-slate-200 rounded-full h-2">
         <div className={`${colorClass} h-2 rounded-full transition-all`} style={{ width: `${percentage}%` }}></div>
       </div>
     </div>

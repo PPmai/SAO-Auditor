@@ -37,6 +37,15 @@ export interface DomainKeywordMetrics {
   topKeywords: KeywordData[];
   trend: 'improving' | 'stable' | 'declining';
   error?: string;
+  // Intent breakdown from keyword discovery
+  intentBreakdown?: {
+    informational: number;
+    commercial: number;
+    transactional: number;
+    navigational: number;
+    dominant: string;
+    dominantPercent: number;
+  };
 }
 
 /**
@@ -382,6 +391,13 @@ export async function testDataForSEOConnection(): Promise<{
     };
   }
 }
+
+
+
+
+
+
+
 
 
 

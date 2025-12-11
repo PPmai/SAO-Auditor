@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔍 Starting analysis for ${validUrls.length} URL(s)`);
     const status = getAPIStatus();
-    console.log(`📡 API Status: Ahrefs=${status.ahrefs}, DataForSEO=${status.dataforseo}, Moz=${status.moz}`);
+    console.log(`📡 API Status: GoogleCustomSearch=${status.googleCustomSearch}, DataForSEO=${status.dataforseo}, Moz=${status.moz}, CommonCrawl=${status.commoncrawl}`);
     if (competitorData.length > 0) {
       console.log(`📊 With ${competitorData.length} competitor domain(s)`);
     }
@@ -123,15 +123,13 @@ export async function POST(request: NextRequest) {
 
     // Calculate domain average for main URLs
     const mainScores = mainUrlResults.map(r => r.analysis.scores);
-    const mainDomainAverage = calculateAverageScores(mainScores);
+    const mainDomainAverage = await calculateAverageScores(mainScores);
 
     // Map API errors to affected metrics (define early so it can be used in competitor analysis)
     const apiErrorToMetrics: Record<string, string[]> = {
-      'Ahrefs keywords': ['Keyword Visibility (Organic Keywords, Average Position)', 'Brand Ranking (Branded Search Rank)'],
-      'Ahrefs backlinks': ['AI Trust (Backlink Quality, Referring Domains)', 'Brand Ranking (Brand Sentiment)'],
+      'Google Custom Search keywords': ['Keyword Visibility (Organic Keywords, Average Position)', 'Brand Ranking (Branded Search Rank)'],
       'DataForSEO keywords': ['Keyword Visibility (Organic Keywords, Average Position)'],
       'Moz backlinks': ['AI Trust (Backlink Quality, Referring Domains)'],
-      'Google Search Console': ['Keyword Visibility (Organic Keywords, Average Position)'],
     };
 
     // Analyze competitor domains
@@ -154,7 +152,7 @@ export async function POST(request: NextRequest) {
         if (compUrlResults.length === 0) return null;
 
         const compScores = compUrlResults.map(r => r.analysis.scores);
-        const compAverage = calculateAverageScores(compScores);
+        const compAverage = await calculateAverageScores(compScores);
 
         // Generate warnings for competitor domain
         const compWarnings: string[] = [];
@@ -300,14 +298,14 @@ export async function POST(request: NextRequest) {
 async function analyzeUrl(url: string) {
   const apiStatus = getAPIStatus();
   console.log(`📊 Analyzing: ${url}`);
-  console.log(`📡 API Status: Ahrefs=${apiStatus.ahrefs}, DataForSEO=${apiStatus.dataforseo}, Moz=${apiStatus.moz}`);
+  console.log(`📡 API Status: GoogleCustomSearch=${apiStatus.googleCustomSearch}, DataForSEO=${apiStatus.dataforseo}, Moz=${apiStatus.moz}, CommonCrawl=${apiStatus.commoncrawl}`);
 
   // Run scraping, PageSpeed, and unified SEO data collection in parallel
   const [scrapingData, pagespeedData, baseMozData, unifiedSEO] = await Promise.all([
     scrapeWebsite(url),
     analyzePageSpeed(url),
     getMozMetrics(url),
-    getUnifiedSEOMetrics(url) // Cascading: Ahrefs → DataForSEO → Moz → Estimates
+    getUnifiedSEOMetrics(url) // Cascading: Google Custom Search → DataForSEO → Estimates
   ]);
 
   console.log(`📈 Data Sources: Keywords from ${unifiedSEO.source.keywords}, Backlinks from ${unifiedSEO.source.backlinks}`);
@@ -321,7 +319,7 @@ async function analyzeUrl(url: string) {
   const enhancedMozData = toMozMetrics(unifiedSEO, baseMozData);
 
   // Calculate scores
-  const scores = calculateTotalScore(scrapingData, pagespeedData, enhancedMozData, keywordData);
+  const scores = await calculateTotalScore(scrapingData, pagespeedData, enhancedMozData, keywordData);
 
   return {
     scraping: scrapingData,
@@ -563,6 +561,12 @@ function generateRecommendations(scores: DetailedScores, scraping: any, pagespee
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const scanId = searchParams.get('id');
+  const userId = searchParams.get('userId');
+
+  // If userId is provided, return empty array (scans are not persisted in this version)
+  if (userId) {
+    return NextResponse.json([]);
+  }
 
   if (scanId) {
     return NextResponse.json({
@@ -580,7 +584,7 @@ export async function GET(request: NextRequest) {
       scraping: 'Active - HTML content analysis',
       pagespeed: 'Active - Google PageSpeed Insights',
       moz: getAPIStatus().moz ? 'Active - Domain Authority, Backlinks' : 'Not configured - Set MOZ_API_TOKEN',
-      ahrefs: getAPIStatus().ahrefs ? 'Active - Keywords, Backlinks' : 'Not configured (fallbacks used)',
+      googleCustomSearch: getAPIStatus().googleCustomSearch ? 'Active - Keyword Discovery, Brand Search' : 'Not configured - Set GOOGLE_CUSTOM_SEARCH_API_KEY and ENGINE_ID',
       dataforseo: getAPIStatus().dataforseo ? 'Active - Keyword rankings' : 'Not configured'
     },
     example: {

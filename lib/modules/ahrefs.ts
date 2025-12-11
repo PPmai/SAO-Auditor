@@ -76,10 +76,17 @@ export async function getUrlKeywords(url: string, country: string = 'th'): Promi
 
         console.log(`🔍 Ahrefs: Fetching keywords for ${cleanUrl}`);
 
+        // Ahrefs API v3 uses token in Authorization header
+        // Format: "Bearer {token}" or just "{token}" depending on API version
+        const authHeader = AHREFS_API_KEY.includes('Bearer') 
+            ? AHREFS_API_KEY 
+            : `Bearer ${AHREFS_API_KEY}`;
+
         const response = await axios.get(`${AHREFS_API_BASE}/site-explorer/organic-keywords`, {
             headers: {
-                'Authorization': `Bearer ${AHREFS_API_KEY}`,
+                'Authorization': authHeader,
                 'Accept': 'application/json',
+                'Content-Type': 'application/json',
             },
             params: {
                 target: cleanUrl,
@@ -91,6 +98,7 @@ export async function getUrlKeywords(url: string, country: string = 'th'): Promi
                 limit: 100,
             },
             timeout: 30000,
+            validateStatus: (status) => status < 500, // Don't throw on 4xx errors
         });
 
         const keywords = response.data?.keywords || [];
@@ -151,18 +159,41 @@ export async function getUrlKeywords(url: string, country: string = 'th'): Promi
         return result;
 
     } catch (error: any) {
-        const errorMsg = error.response?.data?.error || error.message;
+        const status = error.response?.status;
+        const errorData = error.response?.data || error.message;
+        const errorMsg = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+        
         console.error('❌ Ahrefs API error:', errorMsg);
 
-        // Check for rate limit or credit issues
-        if (error.response?.status === 429) {
-            return getEmptyKeywordMetrics('Ahrefs API rate limit exceeded');
+        // Handle specific error types with detailed messages
+        if (status === 401) {
+            console.error('   💡 Check: Is AHREFS_API_KEY set correctly in .env?');
+            console.error('   💡 Check: Is the token valid and not expired?');
+            return getEmptyKeywordMetrics(`Ahrefs authentication failed (401): ${errorMsg}`);
         }
-        if (error.response?.status === 402) {
+        
+        if (status === 403) {
+            return getEmptyKeywordMetrics('Insufficient Ahrefs plan - API access requires paid plan with API access enabled');
+        }
+        
+        if (status === 429) {
+            return getEmptyKeywordMetrics('Ahrefs API rate limit exceeded - please wait before retrying');
+        }
+        
+        if (status === 402) {
             return getEmptyKeywordMetrics('Ahrefs API credits exhausted - please add credits');
         }
 
-        return getEmptyKeywordMetrics(errorMsg);
+        if (status === 400) {
+            return getEmptyKeywordMetrics(`Ahrefs API bad request: ${errorMsg}`);
+        }
+
+        // Network/timeout errors
+        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+            return getEmptyKeywordMetrics('Ahrefs API connection failed - check network or API status');
+        }
+
+        return getEmptyKeywordMetrics(`Ahrefs API error: ${error.message || errorMsg}`);
     }
 }
 
@@ -205,52 +236,14 @@ export async function getSerpCompetitors(keyword: string, country: string = 'th'
 
 /**
  * Get backlink metrics for a domain
- * Endpoint: site-explorer/backlinks-stats
+ * DEPRECATED: This function has been replaced by Common Crawl integration
+ * Use getBacklinkMetrics() from './commoncrawl' instead
+ * 
+ * @deprecated Use Common Crawl module for backlink data
  */
 export async function getBacklinkMetrics(domain: string): Promise<AhrefsBacklinkMetrics> {
-    if (!isAhrefsConfigured()) {
-        return { backlinks: 0, referringDomains: 0, domainRating: 0, error: 'API key not configured' };
-    }
-
-    try {
-        const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-
-        console.log(`🔗 Ahrefs: Fetching backlinks for ${cleanDomain}`);
-
-        const response = await axios.get(`${AHREFS_API_BASE}/site-explorer/backlinks-stats`, {
-            headers: {
-                'Authorization': `Bearer ${AHREFS_API_KEY}`,
-                'Accept': 'application/json',
-            },
-            params: {
-                target: cleanDomain,
-                mode: 'domain',
-                date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
-            },
-            timeout: 30000,
-        });
-
-        const stats = response.data?.stats || {};
-
-        const result: AhrefsBacklinkMetrics = {
-            backlinks: stats.live || 0,
-            referringDomains: stats.refdomains || 0,
-            domainRating: stats.domain_rating || 0,
-        };
-
-        console.log(`✅ Ahrefs: ${result.referringDomains} referring domains, DR ${result.domainRating}`);
-        return result;
-
-    } catch (error: any) {
-        const errorMsg = error.response?.data?.error || error.message;
-        console.error('❌ Ahrefs backlinks error:', errorMsg);
-
-        if (error.response?.status === 402) {
-            return { backlinks: 0, referringDomains: 0, domainRating: 0, error: 'Ahrefs API credits exhausted - please add credits' };
-        }
-
-        return { backlinks: 0, referringDomains: 0, domainRating: 0, error: errorMsg };
-    }
+    console.warn('⚠️ Ahrefs getBacklinkMetrics() is deprecated. Use Common Crawl module instead.');
+    return { backlinks: 0, referringDomains: 0, domainRating: 0, error: 'Deprecated - use Common Crawl module' };
 }
 
 /**

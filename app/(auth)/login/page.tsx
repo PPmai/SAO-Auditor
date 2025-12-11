@@ -3,7 +3,6 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -21,13 +20,17 @@ function LoginForm() {
     setError('');
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sign in');
+      }
 
       router.push(redirect);
       router.refresh();
@@ -110,13 +113,6 @@ function LoginForm() {
           </button>
         </form>
 
-        {/* Links */}
-        <div className="mt-6 text-center text-sm">
-          <span className="text-slate-700">Don't have an account? </span>
-          <Link href="/signup" className="text-slate-800 hover:text-slate-600 font-medium">
-            Sign up
-          </Link>
-        </div>
       </div>
 
       {/* Back to home */}

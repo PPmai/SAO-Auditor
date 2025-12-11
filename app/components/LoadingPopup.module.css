@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 .cloud {
   position: absolute;
@@ -160,7 +160,7 @@
   font-size: 14px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   position: relative;
-  font-family: 'Fredoka', sans-serif;
+  font-family: 'Inter';
 }
 
 .percentCircle::before {
@@ -409,7 +409,7 @@
   left: 40px;
   color: white;
   text-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  font-family: 'Fredoka', sans-serif;
+  font-family: 'Inter';
 }
 
 .textContainer h2 {
@@ -451,4 +451,11 @@
     transform: translateY(-3px);
   }
 }
+
+
+
+
+
+
+
 

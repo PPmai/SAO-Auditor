@@ -1,146 +1,146 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import LoadingPopup from './components/LoadingPopup';
+import SiteHealth from './components/SiteHealth';
+import PillarScores from './components/PillarScores';
 
 // Metric definitions/explanations
 const METRIC_DEFINITIONS: Record<string, { title: string; description: string; tips: string }> = {
   // Content Structure
   schema: {
     title: 'Schema Markup',
-    description: 'Structured data (JSON-LD) that helps search engines and AI understand your content.',
+    description: 'Structured data (JSON-LD) that helps search engines and AI understand your content. Critical for AI Overviews citations and rich results.',
     tips: 'Add FAQ, HowTo, Article, or Product schema to earn maximum points. Use Google\'s Structured Data Testing Tool to validate.',
   },
   tableLists: {
     title: 'Tables & Lists',
-    description: 'Structured content formats that AI can easily parse and extract information from.',
-    tips: 'Include comparison tables, feature lists, and bullet points. AI assistants often pull data directly from tables.',
+    description: 'Structured content formats that AI can easily parse and extract information from. AI assistants often pull data directly from tables.',
+    tips: 'Include comparison tables, feature lists, and bullet points. Tables increase chances of being cited in AI responses.',
   },
   headings: {
     title: 'Heading Structure',
-    description: 'Proper HTML heading hierarchy (H1 → H2 → H3) that creates a clear content outline.',
+    description: 'Proper HTML heading hierarchy (H1 → H2 → H3) that creates a clear content outline. Helps AI understand content structure and extract key information.',
     tips: 'Use exactly one H1 per page. Follow with H2s for main sections and H3s for subsections. Never skip heading levels.',
   },
   multimodal: {
     title: 'Multimodal Content',
-    description: 'Different content types (images, videos, infographics) that enhance understanding.',
-    tips: 'Add images with descriptive alt text, embed relevant videos, and include infographics. This signals comprehensive content to AI.',
+    description: 'Different content types (images, videos, infographics) that enhance understanding. AI systems use images (via alt text) and videos (via transcripts) to understand content better.',
+    tips: 'Add images with descriptive alt text, embed relevant videos with transcripts, and include infographics. Multimodal content increases AI citation probability by 25%+.',
   },
   directAnswer: {
     title: 'Direct Answer (TL;DR)',
-    description: 'Clear, concise answers at the beginning of content that AI can easily extract.',
-    tips: 'Start your content with a brief summary or direct answer to the main question. This increases chances of being featured in AI responses.',
+    description: 'Clear, concise answers at the beginning of content that AI can easily extract. AI systems prioritize content that answers queries in the first 50-100 words.',
+    tips: 'Start your content with a brief summary or direct answer to the main question. Use the "inverted pyramid" approach (answer first, details later).',
   },
   contentGap: {
     title: 'Content Depth',
-    description: 'Comprehensive coverage of a topic compared to competitors.',
-    tips: 'Cover all aspects of your topic thoroughly. Use tools like "People Also Ask" to find related questions to answer.',
+    description: 'Comprehensive coverage of a topic compared to competitors. More thorough content signals authority and increases chances of being cited by AI.',
+    tips: 'Cover all aspects of your topic thoroughly. Use tools like "People Also Ask" to find related questions to answer. Aim for 2,000+ words for comprehensive topics.',
+  },
+  imageAlt: {
+    title: 'Image ALT Tags',
+    description: 'Descriptive text for images that helps accessibility and AI understanding. AI can extract information from images via alt text, enabling visual content citations.',
+    tips: 'Add descriptive alt text to all images >200px. Describe what the image shows in detail (not just "image" or "photo"). Aim for 80%+ coverage.',
   },
 
-  // Website Technical (moved from Brand Ranking)
+  // Website Technical
   lcp: {
     title: 'LCP (Largest Contentful Paint)',
-    description: 'Time it takes for the largest visible element to load.',
-    tips: 'Target: < 5 seconds for full score. Optimize images, use CDN.',
+    description: 'Time it takes for the largest visible element to load. Measures loading performance - when main content becomes visible. Critical Core Web Vitals metric.',
+    tips: 'Target: < 2.5 seconds for full score. Optimize images (WebP/AVIF), use CDN, preload LCP image, minimize server response time (TTFB < 800ms).',
   },
   inp: {
     title: 'INP (Interaction to Next Paint)',
-    description: 'Time from user interaction to browser response.',
-    tips: 'Target: ≤ 200ms. Minimize JavaScript, break up long tasks.',
+    description: 'Time from user interaction to browser response. Measures responsiveness - how quickly the page responds to clicks, taps, or keyboard input. Replaces FID in 2024.',
+    tips: 'Target: ≤ 200ms for full score. Minimize JavaScript, break up long tasks (>50ms), defer non-critical scripts, use web workers for heavy computations.',
   },
   cls: {
     title: 'CLS (Cumulative Layout Shift)',
-    description: 'Measures visual stability - how much elements shift during page load.',
-    tips: 'Target: 0 for full score. Set explicit dimensions for images/videos.',
+    description: 'Measures visual stability - how much elements shift during page load. Prevents unexpected layout jumps that hurt user experience.',
+    tips: 'Target: < 0.1 for full score. Set explicit width/height on images/videos, reserve space for ads/embeds, use font-display: swap for web fonts.',
   },
   mobile: {
     title: 'Mobile Performance',
-    description: 'How well your site performs on mobile devices.',
-    tips: 'Use responsive design, optimize touch targets (48px minimum).',
+    description: 'How well your site performs on mobile devices. Most searches happen on mobile - poor mobile experience hurts rankings and user satisfaction.',
+    tips: 'Use responsive design, optimize touch targets (48px minimum), test on real devices, minimize mobile-specific JavaScript.',
   },
   ssl: {
     title: 'SSL/HTTPS Security',
-    description: 'Secure connection that encrypts data between users and your website.',
-    tips: 'HTTPS required for full score. Install SSL certificate (free via Let\'s Encrypt).',
+    description: 'Secure connection that encrypts data between users and your website. Required for rankings and user trust. Google penalizes non-HTTPS sites.',
+    tips: 'HTTPS required for full score. Install SSL certificate (free via Let\'s Encrypt). Ensure all resources load over HTTPS (no mixed content).',
   },
   brokenLinks: {
     title: 'Link Health',
-    description: 'Quality of internal and external links - no broken links.',
-    tips: 'Regularly audit links. Fix 404 errors and minimize redirect chains.',
+    description: 'Quality of internal and external links - no broken links. Broken links hurt user experience, crawlability, and can reduce trust signals.',
+    tips: 'Regularly audit links. Fix 404 errors and minimize redirect chains. Use tools like Screaming Frog or Ahrefs to find broken links.',
   },
   llmsTxt: {
     title: 'LLMs.txt',
-    description: 'AI-friendly file that helps LLM crawlers understand your site.',
-    tips: 'Create /llms.txt or /llms-full.txt at your domain root.',
+    description: 'AI-friendly file that helps LLM crawlers understand your site. Similar to robots.txt but for AI systems. Helps AI discover and understand your content structure.',
+    tips: 'Create /llms.txt or /llms-full.txt at your domain root. Include sitemap URLs, important pages, and content guidelines. This helps AI systems discover your content.',
   },
   sitemap: {
     title: 'Sitemap.xml',
-    description: 'XML sitemap with all required elements for proper indexing.',
-    tips: 'Must include: urlset, loc, lastmod, changefreq, priority.',
+    description: 'XML sitemap with all required elements for proper indexing. Helps search engines and AI crawlers discover all your important pages efficiently.',
+    tips: 'Must include: urlset, loc, lastmod, changefreq, priority. Submit to Google Search Console. Keep sitemap updated when pages change.',
   },
 
   // Brand Ranking
   brandSearch: {
     title: 'Branded Search Rank',
-    description: 'Your ranking for your brand name keyword.',
-    tips: 'Rank #1 for your brand name. Build brand awareness through PR and social.',
+    description: 'Your ranking for your brand name keyword. Ranking #1 for your brand signals strong brand authority and trust. Critical for brand recognition.',
+    tips: 'Rank #1 for your brand name. Build brand awareness through PR, social media, and consistent branding. Monitor brand search volume monthly.',
   },
   brandSentiment: {
     title: 'Brand Sentiment',
-    description: 'Public sentiment about your brand from community sources.',
-    tips: 'Monitor Pantip, Reddit, reviews. Community sentiment overrides PR.',
+    description: 'Public sentiment about your brand from community sources (Pantip, Reddit, reviews). Community sentiment overrides PR - real user opinions matter more.',
+    tips: 'Monitor Pantip, Reddit, review sites. Respond to negative sentiment professionally. Build positive community presence through authentic engagement.',
   },
 
   // Keyword Visibility
   keywords: {
     title: 'Organic Keywords Count',
-    description: 'Number of keywords your site ranks for in search results.',
-    tips: 'Create content targeting relevant keywords.',
+    description: 'Number of keywords your site ranks for in search results. More keywords = more opportunities to rank and drive traffic. Keyword diversity reduces dependency on single rankings.',
+    tips: 'Create comprehensive content targeting multiple related keywords. Build topic clusters. Target long-tail keywords (3-5 word phrases) for easier wins. Aim for 100+ keywords.',
   },
   positions: {
     title: 'Average Position',
-    description: 'Average ranking position across all your keywords.',
-    tips: 'Lower is better (position 1 = top). Focus on top 10 positions.',
+    description: 'Average ranking position across all your keywords. Lower is better (position 1 = top). Top 10 positions drive 90%+ of organic traffic.',
+    tips: 'Aim for positions 1-10. Improve content quality, relevance, and E-E-A-T signals. Monitor position changes monthly and optimize pages losing positions.',
   },
   intentMatch: {
     title: 'Search Intent Match',
-    description: 'How well your content matches user search intent.',
-    tips: 'Align content with: Informational, Commercial, Transactional, or Navigational intent.',
+    description: 'How well your content matches user search intent (Informational, Commercial, Transactional, Navigational). Matching intent increases click-through rates and conversions.',
+    tips: 'Align content with search intent: Informational (guides, how-tos), Commercial (comparisons, reviews), Transactional (buy, sign up), Navigational (find website).',
   },
 
   // AI Trust
   backlinks: {
     title: 'Backlink Quality',
-    description: 'Links from other websites pointing to yours.',
-    tips: 'Focus on earning links from authoritative, relevant sites.',
+    description: 'Links from other websites pointing to yours. Quality backlinks from authoritative, relevant sites signal trust and authority to search engines and AI systems.',
+    tips: 'Focus on earning links from authoritative, relevant sites. Avoid spam links. Quality over quantity - 10 quality links beat 1000 spam links.',
   },
   referringDomains: {
     title: 'Referring Domains',
-    description: 'Number of unique websites linking to you.',
-    tips: 'Aim for links from many different domains.',
+    description: 'Number of unique websites linking to you. More diverse referring domains signal broader authority and trust. Better than many links from few domains.',
+    tips: 'Aim for links from many different domains. Build relationships, create linkable assets, engage in digital PR. Target 50+ referring domains for competitive keywords.',
   },
   sentiment: {
-    title: 'Content Sentiment',
-    description: 'How professional and positive your content tone is.',
-    tips: 'Use professional language. Avoid aggressive sales tactics.',
+    title: 'AI Sentiment Score',
+    description: 'How professional and positive your content tone is. AI systems evaluate sentiment when deciding whether to cite content. Professional, helpful tone performs better.',
+    tips: 'Use professional, helpful language. Avoid aggressive sales tactics. Focus on providing value and solving problems. Positive sentiment increases AI citation chances.',
   },
   eeat: {
     title: 'E-E-A-T Signals',
-    description: 'Experience, Expertise, Authoritativeness, Trustworthiness.',
-    tips: 'Show author, bio, credentials, citations, and dates.',
+    description: 'Experience, Expertise, Authoritativeness, Trustworthiness. Critical for YMYL (Your Money Your Life) topics. Shows Google and AI that your content is credible and trustworthy.',
+    tips: 'Show author bio with credentials, include publication dates, cite authoritative sources, add author photos. For YMYL topics, require expert authors with verifiable credentials.',
   },
   local: {
     title: 'Local/GEO Signals',
-    description: 'Signals for local search and location-based AI results.',
-    tips: 'Add LocalBusiness OR Organization schema, Google Maps, NAP.',
-  },
-
-  // Content Structure
-  imageAlt: {
-    title: 'Image ALT Tags',
-    description: 'Alt text on images larger than 200x200px.',
-    tips: 'Add descriptive ALT text to ≥2 images (>200px). Excludes logos/icons.',
+    description: 'Signals for local search and location-based AI results. Important for businesses serving specific geographic areas. Helps AI understand your location and service area.',
+    tips: 'Add LocalBusiness OR Organization schema with address, add Google Maps embed, include NAP (Name, Address, Phone) consistently across site, create location-specific pages.',
   },
 };
 
@@ -174,16 +174,27 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
   const [expandedPillar, setExpandedPillar] = useState<string | null>(null);
+  const [expandedMetrics, setExpandedMetrics] = useState<Record<string, boolean>>({});
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Starting analysis...');
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isCompleteRef = useRef(false);
 
   // Simulate progress during scan
   useEffect(() => {
     if (!loading) {
       setProgress(0);
+      isCompleteRef.current = false;
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       return;
     }
+
+    // Reset completion flag
+    isCompleteRef.current = false;
 
     // Start at 1%
     setProgress(1);
@@ -219,18 +230,35 @@ export default function Home() {
     ];
 
     let currentStep = 0;
-    const interval = setInterval(() => {
+    progressIntervalRef.current = setInterval(() => {
+      // Stop if API response is complete
+      if (isCompleteRef.current) {
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
+        return;
+      }
+
       if (currentStep < progressSteps.length) {
         const step = progressSteps[currentStep];
         setProgress(step.progress);
         setStatusMessage(step.message);
         currentStep++;
       } else {
-        clearInterval(interval);
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+          progressIntervalRef.current = null;
+        }
       }
     }, 800); // Update every 800ms
 
-    return () => clearInterval(interval);
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
   }, [loading]);
 
   const handleScan = async (e: React.FormEvent) => {
@@ -287,14 +315,11 @@ export default function Home() {
             <Link href="/pricing" className="text-slate-600 hover:text-slate-800 transition">
               Pricing
             </Link>
-            <Link href="/admin/login" className="text-slate-600 hover:text-slate-800 transition">
-              Admin
-            </Link>
             <Link
-              href="/signup"
+              href="/login"
               className="px-4 py-2 bg-gradient-to-r from-[#38bdf8] to-[#60a5fa] hover:from-[#60a5fa] hover:to-[#38bdf8] text-white rounded-lg transition shadow-md"
             >
-              Get Started
+              Log In
             </Link>
           </nav>
         </div>
@@ -361,76 +386,22 @@ export default function Home() {
             <p className="text-slate-600 text-sm">{result.url}</p>
           </div>
 
-          {/* Top Cards Row - Site Health + Errors/Warnings/Notices */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-            {/* Site Health Card */}
-            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-              <div className="text-sm text-slate-600 mb-4">Site Health</div>
-              <div className="relative flex items-center justify-center mb-4">
-                {/* Semi-circular progress bar */}
-                <svg className="w-32 h-16 transform -rotate-90" viewBox="0 0 100 50">
-                  <path
-                    d="M 10 50 A 40 40 0 0 1 90 50"
-                    fill="none"
-                    stroke="#e5e7eb"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M 10 50 A 40 40 0 0 1 90 50"
-                    fill="none"
-                    stroke={result.score >= 70 ? '#10b981' : result.score >= 50 ? '#eab308' : '#ef4444'}
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(result.score / 100) * 251.2} 251.2`}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-slate-800">{result.score}%</div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <span className="text-slate-600">Your site</span>
-                  <span className="font-semibold text-slate-800">{result.score}%</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                  <span className="text-slate-600">Top-10% websites</span>
-                  <span className="font-semibold text-slate-800">92%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Errors Card */}
-            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-              <div className="text-sm text-slate-700 mb-2">Errors</div>
-              <div className="text-3xl font-bold text-red-600 mb-1">
-                {result.recommendations?.filter((r: any) => r.priority === 'HIGH').length || 0}
-              </div>
-              <div className="text-xs text-slate-600">Critical issues found</div>
-            </div>
-
-            {/* Warnings Card */}
-            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-              <div className="text-sm text-slate-700 mb-2">Warnings</div>
-              <div className="text-3xl font-bold text-orange-600 mb-1">
-                {result.recommendations?.filter((r: any) => r.priority === 'MEDIUM').length || 0}
-              </div>
-              <div className="text-xs text-slate-600">Needs attention</div>
-            </div>
-
-            {/* Notices Card */}
-            <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
-              <div className="text-sm text-slate-700 mb-2">Notices</div>
-              <div className="text-3xl font-bold text-blue-600 mb-1">
-                {result.recommendations?.filter((r: any) => r.priority === 'LOW').length || 0}
-              </div>
-              <div className="text-xs text-slate-600">Optimization tips</div>
-            </div>
+          {/* Site Health and Summary - Side by side on desktop, stacked on mobile */}
+          <div className="mb-6 flex flex-col lg:flex-row gap-6">
+            <SiteHealth
+              score={result.score}
+              errors={result.recommendations?.filter((r: any) => r.priority === 'HIGH' || !r.priority).length || 0}
+              warnings={result.recommendations?.filter((r: any) => r.priority === 'MEDIUM').length || 0}
+              notices={result.recommendations?.filter((r: any) => r.priority === 'LOW').length || 0}
+            />
+            <PillarScores
+              totalScore={result.score}
+              contentStructure={result.scores?.contentStructure || 0}
+              brandRanking={result.scores?.brandRanking || 0}
+              websiteTechnical={result.scores?.websiteTechnical || 0}
+              keywordVisibility={result.scores?.keywordVisibility || 0}
+              aiTrust={result.scores?.aiTrust || 0}
+            />
           </div>
 
           {/* Warning card when data sources are missing or APIs failed */}
@@ -448,13 +419,13 @@ export default function Home() {
             </div>
           )}
 
-          {/* Thematic Reports Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {/* Content Structure Card */}
-            <ThematicReportCard
+          {/* Pillars - Full Width */}
+          <div className="space-y-6 mb-8">
+            {/* Content Structure Pillar */}
+            <PillarSection
               title="Content Structure"
               score={result.scores.contentStructure}
-              maxScore={30}
+              maxScore={25}
               breakdown={result.scores.breakdown?.contentStructure}
               breakdownLabels={{
                 schema: { label: 'Schema Markup', max: 8 },
@@ -466,26 +437,36 @@ export default function Home() {
                 contentGap: { label: 'Content Depth', max: 3 },
               }}
               definitions={METRIC_DEFINITIONS}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
+              pillarKey="contentStructure"
+              expandedMetrics={expandedMetrics}
+              setExpandedMetrics={setExpandedMetrics}
             />
 
-            {/* Brand Ranking Card */}
-            <ThematicReportCard
+            {/* Brand Ranking Pillar */}
+            <PillarSection
               title="Brand Ranking"
               score={result.scores.brandRanking}
-              maxScore={10}
+              maxScore={9}
               breakdown={result.scores.breakdown?.brandRanking}
               breakdownLabels={{
                 brandSearch: { label: 'Branded Search Rank', max: 5 },
                 brandSentiment: { label: 'Brand Sentiment', max: 5 },
               }}
               definitions={METRIC_DEFINITIONS}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
+              pillarKey="brandRanking"
+              expandedMetrics={expandedMetrics}
+              setExpandedMetrics={setExpandedMetrics}
             />
 
-            {/* Website Technical Card */}
-            <ThematicReportCard
+            {/* Website Technical Pillar */}
+            <PillarSection
               title="Website Technical"
               score={result.scores.websiteTechnical || 0}
-              maxScore={18}
+              maxScore={17}
               breakdown={result.scores.breakdown?.websiteTechnical}
               breakdownLabels={{
                 lcp: { label: 'LCP (Load Speed)', max: 3 },
@@ -498,13 +479,18 @@ export default function Home() {
                 sitemap: { label: 'Sitemap.xml', max: 1.5 },
               }}
               definitions={METRIC_DEFINITIONS}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
+              pillarKey="websiteTechnical"
+              expandedMetrics={expandedMetrics}
+              setExpandedMetrics={setExpandedMetrics}
             />
 
-            {/* Keyword Visibility Card */}
-            <ThematicReportCard
+            {/* Keyword Visibility Pillar */}
+            <PillarSection
               title="Keyword Visibility"
               score={result.scores.keywordVisibility}
-              maxScore={25}
+              maxScore={23}
               breakdown={result.scores.breakdown?.keywordVisibility}
               breakdownLabels={{
                 keywords: { label: 'Organic Keywords', max: 10 },
@@ -512,13 +498,18 @@ export default function Home() {
                 intentMatch: { label: 'Search Intent Match', max: 7.5 },
               }}
               definitions={METRIC_DEFINITIONS}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
+              pillarKey="keywordVisibility"
+              expandedMetrics={expandedMetrics}
+              setExpandedMetrics={setExpandedMetrics}
             />
 
-            {/* AI Trust Card */}
-            <ThematicReportCard
+            {/* AI Trust Pillar */}
+            <PillarSection
               title="AI Trust"
               score={result.scores.aiTrust}
-              maxScore={25}
+              maxScore={22}
               breakdown={result.scores.breakdown?.aiTrust}
               breakdownLabels={{
                 backlinks: { label: 'Backlink Quality', max: 7.5 },
@@ -528,6 +519,11 @@ export default function Home() {
                 local: { label: 'Local/GEO Signals', max: 2.5 },
               }}
               definitions={METRIC_DEFINITIONS}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
+              pillarKey="aiTrust"
+              expandedMetrics={expandedMetrics}
+              setExpandedMetrics={setExpandedMetrics}
             />
           </div>
 
@@ -536,10 +532,12 @@ export default function Home() {
             <h3 className="text-lg font-semibold text-slate-800 mb-4">What This Site Can Improve</h3>
             <div className="space-y-4">
               {result.recommendations && result.recommendations.length > 0 ? (
-                result.recommendations.map((rec: any, idx: number) => (
+                result.recommendations
+                  .filter((rec: any) => rec.priority === 'HIGH' || rec.priority === 'MEDIUM' || rec.priority === 'LOW')
+                  .map((rec: any, idx: number) => (
                   <div
                     key={idx}
-                    className={`p-4 rounded-lg border-l-4 ${
+                    className={`p-4 rounded-xl border-l-4 ${
                       rec.priority === 'HIGH' ? 'bg-red-50 border-red-500' :
                       rec.priority === 'MEDIUM' ? 'bg-yellow-50 border-yellow-500' :
                       'bg-green-50 border-green-500'
@@ -636,7 +634,7 @@ export default function Home() {
           </div>
           <div className="flex gap-6 text-sm">
             <Link href="/pricing" className="text-slate-600 hover:text-slate-800">Pricing</Link>
-            <Link href="/admin/login" className="text-slate-600 hover:text-slate-800">Admin</Link>
+            <Link href="/login" className="text-slate-600 hover:text-slate-800">Log In</Link>
           </div>
         </div>
       </footer>
@@ -752,32 +750,56 @@ function PillarCard({
   }[color] || { bg: 'bg-emerald-500', border: 'border-emerald-500/30', text: 'text-emerald-400' };
 
   return (
-    <div className="rounded-xl border border-slate-300 overflow-hidden shadow-sm" style={{ backgroundColor: '#79B4EE' }}>
+    <div 
+      className={`bg-white overflow-hidden transition-all duration-300 ${
+        isExpanded ? 'rounded-2xl shadow-lg' : 'rounded-full shadow-sm'
+      }`}
+      style={{ 
+        boxShadow: isExpanded 
+          ? '0 15px 40px -5px rgba(0,0,0,0.1)' 
+          : '0 2px 8px rgba(0,0,0,0.05)'
+      }}
+    >
       <button
         onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between hover:bg-white/20 transition"
+        className="w-full flex items-center justify-between px-8 py-5 hover:bg-gray-50 transition cursor-pointer"
+        style={{ userSelect: 'none' }}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-xl text-slate-800">{title}</span>
-          <InfoTooltip
-            metricKey={pillarKey}
-            definitions={{
-              [pillarKey]: {
-                title: pillarDefinition.title,
-                description: pillarDefinition.description,
-                tips: 'Expand this section to see detailed breakdown and tips for each metric.',
-              },
-            }}
-            isActive={activeTooltip === `pillar-${pillarKey}`}
-            onToggle={() => setActiveTooltip(activeTooltip === `pillar-${pillarKey}` ? null : `pillar-${pillarKey}`)}
-          />
+        <div className="flex items-center gap-4">
+          <div 
+            className="w-6 h-6 rounded-full border-2 border-gray-900 flex items-center justify-center flex-shrink-0 font-bold text-sm"
+          >
+            ?
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-base font-semibold text-gray-900">{title}</span>
+            <InfoTooltip
+              metricKey={pillarKey}
+              definitions={{
+                [pillarKey]: {
+                  title: pillarDefinition.title,
+                  description: pillarDefinition.description,
+                  tips: 'Expand this section to see detailed breakdown and tips for each metric.',
+                },
+              }}
+              isActive={activeTooltip === `pillar-${pillarKey}`}
+              onToggle={() => setActiveTooltip(activeTooltip === `pillar-${pillarKey}` ? null : `pillar-${pillarKey}`)}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-2xl font-bold text-slate-800">
-            {score}<span className="text-sm text-slate-600">/{maxScore}</span>
-          </span>
+          <div 
+            className="px-4 py-1.5 rounded-full text-xs font-semibold"
+            style={{ 
+              background: '#EEF2FF', 
+              color: '#0062FF' 
+            }}
+          >
+            {Math.round(percentage)}%
+          </div>
           <svg
-            className={`w-5 h-5 text-slate-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+            style={{ color: isExpanded ? '#0062FF' : '#9CA3AF' }}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -787,20 +809,15 @@ function PillarCard({
         </div>
       </button>
 
-      {/* Progress Bar */}
-      <div className="px-4 pb-2">
-        <div className="w-full bg-white/40 rounded-full h-2">
-          <div
-            className={`${colorClasses.bg} h-2 rounded-full transition-all duration-500`}
-            style={{ width: `${percentage}%` }}
-          ></div>
-        </div>
-      </div>
-
       {/* Expanded Breakdown */}
-      {isExpanded && breakdown && (
-        <div className="px-4 pb-4 space-y-6 border-t border-slate-300 mt-2 pt-4">
-          {Object.entries(breakdownLabels).map(([key, { label, max }]) => {
+      <div 
+        className={`overflow-hidden transition-all duration-300 ${
+          isExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {isExpanded && breakdown && (
+          <div className="px-8 pb-8 pt-0 space-y-6" style={{ paddingLeft: '72px' }}>
+            {Object.entries(breakdownLabels).map(([key, { label, max }]) => {
             // Handle both old format (number) and new format (object)
             const rawItem = breakdown[key];
             const item = typeof rawItem === 'number'
@@ -863,21 +880,27 @@ function PillarCard({
                 )}
               </div>
             );
-          })}
-        </div>
-      )}
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// Thematic Report Card Component (Ahrefs-style)
-function ThematicReportCard({
+// Pillar Section Component - Full Width with Individual Metric Dropdowns
+function PillarSection({
   title,
   score,
   maxScore,
   breakdown,
   breakdownLabels,
   definitions,
+  activeTooltip,
+  setActiveTooltip,
+  pillarKey,
+  expandedMetrics,
+  setExpandedMetrics,
 }: {
   title: string;
   score: number;
@@ -885,50 +908,287 @@ function ThematicReportCard({
   breakdown?: Record<string, { score: number; value?: string | number; insight?: string; recommendation?: string }>;
   breakdownLabels: Record<string, { label: string; max: number }>;
   definitions: Record<string, { title: string; description: string; tips: string }>;
+  activeTooltip: string | null;
+  setActiveTooltip: (key: string | null) => void;
+  pillarKey: string;
+  expandedMetrics: Record<string, boolean>;
+  setExpandedMetrics: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}) {
+  const percentage = Math.round((score / maxScore) * 100);
+
+  return (
+    <div className="w-full rounded-xl overflow-hidden" style={{ backgroundColor: '#365069' }}>
+      {/* Pillar Header */}
+      <div className="px-8 py-6 text-center">
+        <h3 className="text-3xl font-bold text-white">{title}</h3>
+      </div>
+
+      {/* Metrics Dropdowns */}
+      <div className="px-6 pb-6 space-y-3">
+        {breakdown && Object.entries(breakdownLabels).map(([key, { label, max }]) => {
+          const item = breakdown[key];
+          if (!item) return null;
+          
+          const itemScore = typeof item === 'number' ? item : (item.score ?? 0);
+          const cappedScore = Math.min(itemScore, max); // Cap score at max
+          const itemPercentage = Math.round((cappedScore / max) * 100);
+          const itemValue = typeof item === 'object' ? item.value : undefined;
+          const insight = typeof item === 'object' ? item.insight : undefined;
+          const recommendation = typeof item === 'object' ? item.recommendation : undefined;
+          const metricKey = `${pillarKey}-${key}`;
+          const isExpanded = expandedMetrics[metricKey] || false;
+
+          return (
+            <MetricDropdown
+              key={key}
+              label={label}
+              score={cappedScore}
+              max={max}
+              percentage={itemPercentage}
+              value={itemValue}
+              insight={insight}
+              recommendation={recommendation}
+              definition={definitions[key]}
+              metricKey={key}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
+              isExpanded={isExpanded}
+              onToggle={() => setExpandedMetrics(prev => ({ ...prev, [metricKey]: !prev[metricKey] }))}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Individual Metric Dropdown Component
+function MetricDropdown({
+  label,
+  score,
+  max,
+  percentage,
+  value,
+  insight,
+  recommendation,
+  definition,
+  metricKey,
+  activeTooltip,
+  setActiveTooltip,
+  isExpanded,
+  onToggle,
+  breakdown,
+}: {
+  label: string;
+  score: number;
+  max: number;
+  percentage: number;
+  value?: string | number;
+  insight?: string;
+  recommendation?: string;
+  definition?: { title: string; description: string; tips: string };
+  metricKey: string;
+  activeTooltip: string | null;
+  setActiveTooltip: (key: string | null) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+  breakdown?: Record<string, { score: number; value?: string | number; insight?: string; recommendation?: string; isEstimation?: boolean }>;
+}) {
+  return (
+    <div className="w-full">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-6 py-4 rounded-lg transition-all duration-300 hover:opacity-90"
+        style={{ 
+          backgroundColor: '#42a5f5',
+          border: '1px solid #365069'
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-white font-medium">{label}</span>
+          {definition && (
+            <InfoTooltip
+              metricKey={metricKey}
+              definitions={{ [metricKey]: definition }}
+              isActive={activeTooltip === metricKey}
+              onToggle={() => setActiveTooltip(activeTooltip === metricKey ? null : metricKey)}
+            />
+          )}
+          {/* Show estimation badge if this metric uses estimation */}
+          {breakdown?.[metricKey]?.isEstimation && (
+            <span className="px-2 py-0.5 rounded text-xs font-semibold text-red-600 bg-white border border-red-600">
+              estimation
+            </span>
+          )}
+        </div>
+        <svg
+          className={`w-5 h-5 text-white transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Expanded Content */}
+      <div 
+        className={`overflow-hidden transition-all duration-300 ${
+          isExpanded ? 'max-h-[5000px] opacity-100 mt-3' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {isExpanded && (
+          <div 
+            className="px-6 py-4 rounded-lg"
+            style={{ 
+              backgroundColor: '#42a5f5',
+              border: '1px solid #365069'
+            }}
+          >
+            <div className="space-y-4">
+              {/* Score Display */}
+              <div className="flex items-center justify-between">
+                <span className="text-white text-sm font-medium">
+                  {Math.min(score, max).toFixed(1)}/{max} pts ({Math.min(Math.round((score / max) * 100), 100)}%)
+                </span>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  percentage >= 70 ? 'bg-green-100 text-green-700' :
+                  percentage >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {percentage >= 70 ? 'Good' : percentage >= 40 ? 'Fair' : 'Poor'}
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full bg-white/30 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${
+                    percentage >= 70 ? 'bg-green-500' :
+                    percentage >= 40 ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(percentage, 100)}%` }}
+                ></div>
+              </div>
+
+              {/* Result & Recommendations */}
+              <div className="bg-white/20 rounded-lg p-4 text-sm text-white">
+                <div className="font-semibold mb-2">Result:</div>
+                <div className="text-white/90 leading-relaxed mb-3">
+                  {insight || (value ? `${label}: ${value}` : `${label} scored ${score.toFixed(1)}/${max} points.`)}
+                </div>
+                
+                {recommendation && (
+                  <div className="mt-3 pt-3 border-t border-white/30">
+                    <div className="font-semibold mb-2">💡 How to Improve:</div>
+                    <div className="text-white/90 leading-relaxed">{recommendation}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Thematic Report Card Component (Accordion-style) - Keep for backward compatibility
+function ThematicReportCard({
+  title,
+  score,
+  maxScore,
+  breakdown,
+  breakdownLabels,
+  definitions,
+  activeTooltip,
+  setActiveTooltip,
+  metricKey,
+  isExpanded,
+  onToggle,
+}: {
+  title: string;
+  score: number;
+  maxScore: number;
+  breakdown?: Record<string, { score: number; value?: string | number; insight?: string; recommendation?: string }>;
+  breakdownLabels: Record<string, { label: string; max: number }>;
+  definitions: Record<string, { title: string; description: string; tips: string }>;
+  activeTooltip: string | null;
+  setActiveTooltip: (key: string | null) => void;
+  metricKey: string;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) {
   const percentage = Math.round((score / maxScore) * 100);
   const colorClass = percentage >= 70 ? 'text-blue-600' : percentage >= 50 ? 'text-yellow-600' : 'text-red-600';
   const bgColorClass = percentage >= 70 ? 'bg-blue-50' : percentage >= 50 ? 'bg-yellow-50' : 'bg-red-50';
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="font-semibold text-slate-800 text-sm">{title}</h4>
-        <div className={`text-2xl font-bold ${colorClass}`}>{percentage}%</div>
-      </div>
-      
-      {/* Circular Progress */}
-      <div className="flex justify-center mb-4">
-        <div className="relative w-20 h-20">
-          <svg className="w-20 h-20 transform -rotate-90">
-            <circle
-              cx="40"
-              cy="40"
-              r="32"
-              stroke="#e5e7eb"
-              strokeWidth="6"
-              fill="none"
+    <div 
+      className={`bg-white overflow-hidden transition-all duration-300 ${
+        isExpanded ? 'rounded-2xl shadow-lg' : 'rounded-full shadow-sm'
+      }`}
+      style={{ 
+        boxShadow: isExpanded 
+          ? '0 15px 40px -5px rgba(0,0,0,0.1)' 
+          : '0 2px 8px rgba(0,0,0,0.05)'
+      }}
+    >
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-8 py-5 hover:bg-gray-50 transition cursor-pointer"
+        style={{ userSelect: 'none' }}
+      >
+        <div className="flex items-center gap-4">
+          <div 
+            className="w-6 h-6 rounded-full border-2 border-gray-900 flex items-center justify-center flex-shrink-0 font-bold text-sm"
+          >
+            ?
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-base font-semibold text-gray-900">{title}</span>
+            <InfoTooltip
+              metricKey={metricKey}
+              definitions={definitions}
+              isActive={activeTooltip === metricKey}
+              onToggle={() => setActiveTooltip(activeTooltip === metricKey ? null : metricKey)}
             />
-            <circle
-              cx="40"
-              cy="40"
-              r="32"
-              stroke={percentage >= 70 ? '#3b82f6' : percentage >= 50 ? '#eab308' : '#ef4444'}
-              strokeWidth="6"
-              fill="none"
-              strokeDasharray={`${(percentage / 100) * 201} 201`}
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-lg font-bold ${colorClass}`}>{percentage}%</span>
           </div>
         </div>
-      </div>
+        <div className="flex items-center gap-4">
+          <div 
+            className="px-4 py-1.5 rounded-full text-xs font-semibold"
+            style={{ 
+              background: '#EEF2FF', 
+              color: '#0062FF' 
+            }}
+          >
+            {percentage}%
+          </div>
+          <svg
+            className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+            style={{ color: isExpanded ? '#0062FF' : '#9CA3AF' }}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
 
-      {/* Detailed Breakdown with Explanations */}
-      {breakdown && (
-        <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+      {/* Expanded Content */}
+      <div 
+        className={`overflow-hidden transition-all duration-300 ${
+          isExpanded ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {isExpanded && (
+          <div className="px-8 pb-8 pt-0" style={{ paddingLeft: '72px' }}>
+            {/* Detailed Breakdown with Explanations */}
+            {breakdown && (
+              <div className="mt-4 space-y-4">
           {Object.entries(breakdownLabels).map(([key, { label, max }]) => {
             const item = breakdown[key];
             if (!item) return null;
@@ -939,12 +1199,22 @@ function ThematicReportCard({
             const insight = typeof item === 'object' ? item.insight : undefined;
             const recommendation = typeof item === 'object' ? item.recommendation : undefined;
 
+            const def = definitions[key];
+            
             return (
               <div key={key} className="space-y-2">
                 {/* Metric Header */}
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
+                  <div className="flex-1 flex items-center gap-2">
                     <div className="text-sm font-medium text-slate-800">{label}</div>
+                    {def && (
+                      <InfoTooltip
+                        metricKey={key}
+                        definitions={definitions}
+                        isActive={activeTooltip === key}
+                        onToggle={() => setActiveTooltip(activeTooltip === key ? null : key)}
+                      />
+                    )}
                     <div className="text-xs text-slate-500 mt-0.5">
                       {itemScore.toFixed(1)}/{max} pts ({itemPercentage}%)
                     </div>
@@ -998,8 +1268,11 @@ function ThematicReportCard({
               </div>
             );
           })}
-        </div>
-      )}
+            </div>
+          )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

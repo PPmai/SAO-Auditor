@@ -50,9 +50,10 @@ function generateHTMLReport(scan: any) {
 <head>
   <meta charset="UTF-8">
   <title>HAS Scorecard Report - ${scan.url}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 40px; }
+    body { font-family: 'Inter'; background: #0f172a; color: #e2e8f0; padding: 40px; }
     .container { max-width: 800px; margin: 0 auto; }
     .header { text-align: center; margin-bottom: 40px; }
     .logo { font-size: 24px; font-weight: bold; margin-bottom: 10px; }

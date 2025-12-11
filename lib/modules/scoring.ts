@@ -2,7 +2,8 @@ import { ScrapingResult } from './scraper';
 import { PageSpeedResult } from './pagespeed';
 import { MozMetrics, mozMetricsToScores } from './moz';
 import { DomainKeywordMetrics, keywordMetricsToScores } from './dataforseo';
-import { GSCMetrics, gscMetricsToScores } from './google-search-console';
+import { analyzeBrandSentiment, isGeminiConfigured } from './gemini';
+import { getBrandSearchPosition, isGoogleCustomSearchConfigured } from './google-custom-search';
 
 // New 5-pillar structure (108 pts total, normalized to 100)
 export interface PillarScores {
@@ -18,6 +19,7 @@ export interface MetricDetail {
   value?: string | number;
   insight?: string;
   recommendation?: string;
+  isEstimation?: boolean; // NEW: Flag to indicate if score is based on estimation
 }
 
 export interface DetailedScores extends PillarScores {
@@ -66,8 +68,8 @@ export interface DetailedScores extends PillarScores {
     gsc: boolean;
     pagespeed: boolean;
     scraping: boolean;
-    ahrefs: boolean;    // NEW
     gemini: boolean;    // NEW
+    googleCustomSearch: boolean; // NEW
   };
 }
 
@@ -82,29 +84,60 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   let directAnswerScore = 0;
   let contentGapScore = 0;
 
-  // 1. Schema Coverage (9 points)
+  // 1. Schema Coverage (8 points) - reduced from 9
   let schemaInsight = "";
   let schemaRec = "";
+
+  // Check if this is a home page:
+  // - No slug: www.xxx.com/
+  // - Language path only: www.xxx.com/th, www.xxx.com/en
+  // - Contains "home": www.xxx.com/home
+  const urlPath = new URL(scraping.url).pathname.toLowerCase();
+  const pathSegments = urlPath.split('/').filter(s => s.length > 0);
+  
+  // Check if it's a home page
+  const isHomePage = 
+    urlPath === '/' || 
+    urlPath === '/home' || 
+    urlPath === '/index' || 
+    urlPath === '/index.html' ||
+    // Language path only (e.g., /th, /en, /th/, /en/)
+    (pathSegments.length === 1 && /^[a-z]{2,3}$/.test(pathSegments[0])) ||
+    (pathSegments.length === 0 && urlPath !== '/') ||
+    // Contains "home" in path
+    pathSegments.includes('home');
 
   if (!scraping.hasSchema) {
     schemaInsight = `No schema markup detected. Without structured data, AI systems (Google AI Overviews, ChatGPT, Perplexity) cannot understand your content's context, making it unlikely to be cited in AI responses. Schema markup is critical for GEO (Generative Engine Optimization) as it helps LLMs parse and extract information accurately.`;
     schemaRec = `Implement JSON-LD schema markup immediately: 1) Add Article or BlogPosting schema to all content pages, 2) Add FAQPage schema to pages with Q&A sections (this dramatically increases AI citation chances), 3) Add HowTo schema for tutorial/guide content, 4) Validate with Google's Rich Results Test. Start with FAQPage schema as it's proven to increase AI Overview citations by 40%+.`;
   } else {
-    schemaScore += 4;
-    const richTypes = ['FAQ', 'HowTo', 'Product', 'Recipe', 'Article'];
-    const foundRichTypes = scraping.schemaTypes.filter(type =>
-      richTypes.some(rich => type.includes(rich))
-    );
+    schemaScore += 3.5;
+    
+    // Skip rich schema requirement for home pages
+    if (!isHomePage) {
+      const richTypes = ['FAQ', 'HowTo', 'Product', 'Recipe', 'Article'];
+      const foundRichTypes = scraping.schemaTypes.filter(type =>
+        richTypes.some(rich => type.includes(rich))
+      );
 
-    if (foundRichTypes.length > 0) {
-      schemaScore += 5;
-      schemaInsight = `Rich schema types detected: ${foundRichTypes.join(', ')}. This is excellent for AI visibility because structured data helps LLMs understand content relationships and extract key information. FAQPage schema is particularly valuable for AI Overview citations, while HowTo schema helps with step-by-step queries. Your content is well-structured for GEO optimization.`;
-      schemaRec = `Maintain and expand your schema implementation: 1) Ensure all FAQPage schemas include natural-language questions (not just keywords), 2) Add Article schema with author information for E-E-A-T signals, 3) Consider adding LocalBusiness schema if applicable, 4) Regularly validate schema with Google's Rich Results Test to catch any errors.`;
+      if (foundRichTypes.length > 0) {
+        schemaScore += 4.5;
+        schemaInsight = `Rich schema types detected: ${foundRichTypes.join(', ')}. This is excellent for AI visibility because structured data helps LLMs understand content relationships and extract key information. FAQPage schema is particularly valuable for AI Overview citations, while HowTo schema helps with step-by-step queries. Your content is well-structured for GEO optimization.`;
+        schemaRec = `Maintain and expand your schema implementation: 1) Ensure all FAQPage schemas include natural-language questions (not just keywords), 2) Add Article schema with author information for E-E-A-T signals, 3) Consider adding LocalBusiness schema if applicable, 4) Regularly validate schema with Google's Rich Results Test to catch any errors.`;
+      } else {
+        schemaInsight = `Basic schema detected (${scraping.schemaTypes.join(', ') || 'generic'}), but no rich schema types found. While basic schema helps, rich schema types (FAQPage, HowTo, Article) significantly increase your chances of being cited in AI Overviews. Without FAQPage schema, you're missing a major opportunity for AI citation.`;
+        schemaRec = `Upgrade to rich schema types: 1) Add FAQPage schema with 3-5 natural questions and answers (this is the #1 schema for AI Overview citations), 2) Add Article schema with author credentials for E-E-A-T, 3) Add HowTo schema if you have tutorial content, 4) Use Google's Structured Data Testing Tool to validate. FAQPage schema alone can increase AI citation rates by 40%+.`;
+      }
     } else {
-      schemaInsight = `Basic schema detected (${scraping.schemaTypes.join(', ') || 'generic'}), but no rich schema types found. While basic schema helps, rich schema types (FAQPage, HowTo, Article) significantly increase your chances of being cited in AI Overviews. Without FAQPage schema, you're missing a major opportunity for AI citation.`;
-      schemaRec = `Upgrade to rich schema types: 1) Add FAQPage schema with 3-5 natural questions and answers (this is the #1 schema for AI Overview citations), 2) Add Article schema with author credentials for E-E-A-T, 3) Add HowTo schema if you have tutorial content, 4) Use Google's Structured Data Testing Tool to validate. FAQPage schema alone can increase AI citation rates by 40%+.`;
+      // Home page: ignore rich schema requirement, give full points (8 points)
+      schemaScore += 4.5; // Full points for home pages with any schema
+      schemaInsight = `Schema markup detected on home page (${scraping.schemaTypes.join(', ') || 'generic'}). For home pages, basic schema like Organization or WebSite is appropriate and sufficient. Rich schema types (FAQPage, HowTo) are more important for content pages, not home pages.`;
+      schemaRec = `Maintain schema on home page: 1) Keep Organization or WebSite schema for home page, 2) Add rich schema types (FAQPage, HowTo, Article) to content pages instead, 3) Validate with Google's Rich Results Test.`;
     }
   }
+
+  // Cap schema score at max (8 points)
+  schemaScore = Math.min(schemaScore, 8);
 
   // 2. Table/List Utilization (2 points)
   if (scraping.tableCount >= 1) tableListScore += 1;
@@ -126,26 +159,26 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
     tableListRec = `Implement structured content immediately: 1) Add comparison tables for any product/service comparisons (AI often cites these directly), 2) Convert key information into bulleted lists (AI can extract these easily), 3) Use HTML tables for data comparisons (not images), 4) Add feature comparison tables if relevant. Tables and lists increase AI citation probability by 30%+. Start with at least 1 comparison table and 3+ bulleted lists per page.`;
   }
 
-  // 3. Heading Structure (6 points)
+  // 3. Heading Structure (5 points) - reduced from 6
   const hasH1 = scraping.h1.length > 0;
   const hasH2 = scraping.h2.length > 0;
   const hasH3 = scraping.h3.length > 0;
   const properH1Count = scraping.h1.length === 1;
   const multipleH1 = scraping.h1.length > 1;
 
-  // +3.5 points: Exactly 1 H1 (most important)
+  // +3 points: Exactly 1 H1 (most important) - reduced from 3.5
   if (properH1Count) {
-    headingScore += 3.5;
+    headingScore += 3;
   }
 
   // Hierarchy scoring (H1 > H2 nesting)
   if (hasH1 && hasH2) {
     if (properH1Count) {
-      // +2 points: Good hierarchy with proper single H1
-      headingScore += 2;
+      // +1.5 points: Good hierarchy with proper single H1 - reduced from 2
+      headingScore += 1.5;
     } else if (multipleH1) {
-      // +1 point: Has hierarchy but penalized for multiple H1
-      headingScore += 1;
+      // +0.75 point: Has hierarchy but penalized for multiple H1 - reduced from 1
+      headingScore += 0.75;
     }
   }
 
@@ -153,6 +186,9 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   if (hasH1 && hasH2 && hasH3) {
     headingScore += 0.5;
   }
+
+  // Cap heading score at max (5 points)
+  headingScore = Math.min(headingScore, 5);
 
   let headingInsight = "";
   let headingRec = "";
@@ -177,45 +213,54 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   const headingValue = `H1: ${scraping.h1.length}, H2: ${scraping.h2.length}, H3: ${scraping.h3.length}`;
 
 
-  // 4. Multimodal Content (5 points)
+  // 4. Multimodal Content (4 points) - reduced from 5
   const imageAltRatio = scraping.imageCount > 0
     ? scraping.imagesWithAlt / scraping.imageCount
     : 0;
 
-  if (imageAltRatio >= 0.8) multimodalScore += 2;
-  else if (imageAltRatio >= 0.5) multimodalScore += 1;
+  if (imageAltRatio >= 0.8) multimodalScore += 1.5;
+  else if (imageAltRatio >= 0.5) multimodalScore += 0.75;
 
-  if (scraping.videoCount >= 2) multimodalScore += 2;
-  else if (scraping.videoCount >= 1) multimodalScore += 1;
+  if (scraping.videoCount >= 2) multimodalScore += 1.5;
+  else if (scraping.videoCount >= 1) multimodalScore += 0.75;
 
-  if (scraping.imageCount >= 5 || scraping.videoCount >= 1) multimodalScore += 1;
+  if (scraping.imageCount >= 5 || scraping.videoCount >= 1) multimodalScore += 0.75;
+
+  // Cap multimodal score at max (4 points)
+  multimodalScore = Math.min(multimodalScore, 4);
 
   const multimodalValue = `${scraping.imageCount} Images (${Math.round(imageAltRatio * 100)}% Alt), ${scraping.videoCount} Videos`;
 
-  // 5. Direct Answer (5 points)
+  // 5. Direct Answer (2 points) - reduced from 5
   if (scraping.wordCount >= 50 && scraping.h1.length > 0) {
-    directAnswerScore = 5;
+    directAnswerScore = 2;
   } else if (scraping.wordCount >= 30) {
-    directAnswerScore = 3;
+    directAnswerScore = 1.25;
   } else if (scraping.wordCount >= 15) {
-    directAnswerScore = 1;
+    directAnswerScore = 0.5;
   }
 
-  // 6. Content Gap (3 points)
+  // Cap direct answer score at max (2 points)
+  directAnswerScore = Math.min(directAnswerScore, 2);
+
+  // 6. Content Gap (1 point) - reduced from 3
   if (scraping.wordCount >= 1000 && scraping.h2.length >= 3) {
-    contentGapScore = 3;
-  } else if (scraping.wordCount >= 500) {
-    contentGapScore = 2;
-  } else if (scraping.wordCount >= 200) {
     contentGapScore = 1;
+  } else if (scraping.wordCount >= 500) {
+    contentGapScore = 0.75;
+  } else if (scraping.wordCount >= 200) {
+    contentGapScore = 0.5;
   }
 
-  const total = Math.min(30, Math.round(
+  // Cap content gap score at max (1 point)
+  contentGapScore = Math.min(contentGapScore, 1);
+
+  const total = Math.min(25, Math.round(
     schemaScore + tableListScore + headingScore +
     multimodalScore + directAnswerScore + contentGapScore
   ));
 
-  // Image ALT scoring (3 pts) - FIXED
+  // Image ALT scoring (2.5 pts) - reduced from 3
   // Score based on percentage of images with alt text
   // Excludes small images (assumed to be icons) in a real implementation
   let imageAltScore = 0;
@@ -225,10 +270,10 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
     const altCoverage = (scraping.imagesWithAlt / scraping.imageCount) * 100;
 
     if (altCoverage >= 80) {
-      imageAltScore = 3;
+      imageAltScore = 2.5;
       imageAltValue = `${Math.round(altCoverage)}% coverage (Excellent)`;
     } else if (altCoverage >= 60) {
-      imageAltScore = 2;
+      imageAltScore = 1.75;
       imageAltValue = `${Math.round(altCoverage)}% coverage (Good)`;
     } else if (altCoverage >= 40) {
       imageAltScore = 1;
@@ -246,7 +291,7 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   if (multimodalScore >= 4) {
     multimodalInsight = `Excellent multimodal content: ${scraping.imageCount} images (${Math.round(imageAltRatio * 100)}% with alt text) and ${scraping.videoCount} videos. Multimodal content is crucial for GEO optimization because AI systems can extract information from images (via alt text) and videos (via transcripts). Rich visual content signals comprehensive coverage to AI, increasing citation likelihood. Your content provides multiple content types that enhance understanding.`;
     multimodalRec = `Maintain this multimodal approach: 1) Keep alt text coverage above 80% for all images, 2) Add transcripts to videos (AI can read these), 3) Use images to illustrate key concepts (screenshots, infographics, diagrams), 4) Ensure images are optimized (WebP format, compressed) for fast loading, 5) Consider adding more infographics or process diagrams as these are frequently cited by AI.`;
-  } else if (multimodalScore >= 2) {
+  } else if (multimodalScore >= 1.75) {
     multimodalInsight = `Moderate multimodal content: ${scraping.imageCount} images (${Math.round(imageAltRatio * 100)}% with alt text) and ${scraping.videoCount} videos. While you have some visual elements, more multimodal content would significantly improve AI understanding. AI systems use images (via alt text) and videos (via transcripts) to understand content better. Without sufficient multimodal signals, your content may be overlooked when AI needs visual context.`;
     multimodalRec = `Enhance multimodal content: 1) Add more images with descriptive alt text (aim for 5+ images per page, especially screenshots, infographics, or process diagrams), 2) Embed relevant videos with transcripts (AI can read transcripts), 3) Use images to break up text and illustrate concepts, 4) Ensure all images >200px have descriptive alt text (not just "image" or "photo"), 5) Consider adding comparison infographics or flowcharts as these are frequently cited by AI. Multimodal content increases AI citation probability by 25%+.`;
   } else {
@@ -257,10 +302,10 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   // Direct Answer insights
   let directAnswerInsight = '';
   let directAnswerRec = '';
-  if (directAnswerScore >= 5) {
+  if (directAnswerScore >= 2) {
     directAnswerInsight = `Content starts with a clear, direct answer (${scraping.wordCount >= 50 ? '50+' : scraping.wordCount} words) that addresses the main query immediately. This is excellent for GEO optimization because AI systems extract the first 50-100 words to understand what your content answers. When AI Overviews need a quick answer, they look for direct answers in the opening paragraph. Your content structure follows the "inverted pyramid" approach that AI prefers.`;
     directAnswerRec = `Maintain this direct answer format: 1) Keep answering the main query in the first 50-100 words, 2) Use the "inverted pyramid" structure (answer first, details later), 3) Make the opening paragraph standalone (AI often extracts just this), 4) Include key facts/numbers in the opening if relevant, 5) Ensure the first paragraph can serve as a featured snippet answer. This format maximizes AI citation chances.`;
-  } else if (directAnswerScore >= 3) {
+  } else if (directAnswerScore >= 1.25) {
     directAnswerInsight = `Content has a brief introduction (${scraping.wordCount} words) but could be more direct. While you have some opening content, it may not clearly answer the main query immediately. AI systems prioritize content that answers queries in the first 50 words. Without a direct answer upfront, your content may be overlooked when AI needs quick information. The opening should answer "What is this about?" immediately.`;
     directAnswerRec = `Restructure the opening: 1) Answer the main query in the first 50 words (use the "inverted pyramid" approach), 2) Start with a direct answer, then provide context, 3) Include key facts or numbers in the opening if relevant, 4) Make the first paragraph standalone (AI often extracts just this), 5) Ensure the opening can serve as a featured snippet answer. Example: "Generative Engine Optimization (GEO) is the practice of optimizing content so AI systems like Google AI Overviews can discover, understand, and cite your content. Unlike traditional SEO focused on rankings, GEO focuses on being cited in AI responses..."`;
   } else if (directAnswerScore >= 1) {
@@ -274,10 +319,10 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   // Content Gap insights
   let contentGapInsight = '';
   let contentGapRec = '';
-  if (contentGapScore >= 3) {
+  if (contentGapScore >= 1) {
     contentGapInsight = `Comprehensive content depth: ${scraping.wordCount} words with ${scraping.h2.length} main sections. This level of depth signals comprehensive coverage to both search engines and AI systems. Deep, well-structured content is more likely to be cited by AI because it provides thorough information that answers multiple aspects of a query. Your content matches or exceeds competitor depth, giving you a competitive advantage.`;
     contentGapRec = `Maintain this comprehensive approach: 1) Keep updating content quarterly with fresh information, 2) Add new sections when competitors publish new angles, 3) Include original data or insights to maintain information gain advantage, 4) Expand sections that competitors cover but you don't, 5) Monitor competitor content depth and ensure you match or exceed it. Comprehensive content depth is essential for both rankings and AI citations.`;
-  } else if (contentGapScore >= 2) {
+  } else if (contentGapScore >= 0.75) {
     contentGapInsight = `Good content depth: ${scraping.wordCount} words with ${scraping.h2.length} sections, but could expand further to match top competitors. While your content covers the basics, top-ranking pages typically have 1000+ words with 3+ main sections. Shorter content may miss information gaps that competitors cover, reducing your chances of being cited when AI needs comprehensive answers.`;
     contentGapRec = `Expand content depth: 1) Add 2-3 more main sections (H2s) covering related subtopics, 2) Expand each section to 200-300 words with specific details, 3) Add FAQ section addressing "People Also Ask" questions, 4) Include original data, case studies, or expert quotes to add information gain, 5) Cover aspects that competitors mention but you don't. Aim for 1000+ words with 3+ main sections to match top competitors. This depth increases AI citation probability by 30%+.`;
   } else if (contentGapScore >= 1) {
@@ -291,10 +336,10 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
   // Image Alt insights
   let imageAltInsight = '';
   let imageAltRec = '';
-  if (imageAltScore >= 3) {
+  if (imageAltScore >= 2.5) {
     imageAltInsight = `${imageAltValue}. Excellent alt text coverage is crucial for GEO optimization because AI systems use alt text to understand images. When AI needs to describe visual content or cite information from images, descriptive alt text enables accurate extraction. Your images are well-optimized for both accessibility and AI understanding.`;
     imageAltRec = `Maintain this standard: 1) Keep alt text coverage above 80% for all images, 2) Ensure alt text describes what the image shows (not just "image" or "photo"), 3) Include relevant keywords naturally in alt text when appropriate, 4) For infographics or diagrams, describe the key information shown, 5) Update alt text if images change. Descriptive alt text helps AI understand visual content and increases citation chances for image-rich queries.`;
-  } else if (imageAltScore >= 2) {
+  } else if (imageAltScore >= 1.75) {
     imageAltInsight = `${imageAltValue}. While most images have alt text, reaching 80%+ coverage is important for GEO optimization. AI systems rely on alt text to understand images, and missing alt text means AI cannot extract information from those images. This reduces your content's multimodal signal strength, potentially impacting AI citation chances for visual queries.`;
     imageAltRec = `Complete alt text coverage: 1) Add descriptive alt text to all remaining images (especially those >200px), 2) Describe what the image shows, not just generic terms, 3) For infographics, describe the key data or information displayed, 4) Include relevant keywords naturally when appropriate, 5) Aim for 80%+ coverage to maximize AI understanding. Example: Instead of "chart", use "Bar chart showing SEO traffic growth from 2020-2025, increasing from 1,000 to 15,000 monthly visitors". This level of detail helps AI extract information from images.`;
   } else if (imageAltScore >= 1) {
@@ -322,38 +367,141 @@ export function calculateContentStructureScore(scraping: ScrapingResult): {
 // PILLAR 2: Brand Ranking (10 points)
 // - brandSearch: 5 pts
 // - brandSentiment: 5 pts
-export function calculateBrandRankingScore(
+export async function calculateBrandRankingScore(
   scraping: ScrapingResult,
   // TODO: Add Ahrefs data for brand search
-  // TODO: Add Gemini sentiment data
-): {
+): Promise<{
   score: number;
   breakdown: DetailedScores['breakdown']['brandRanking'];
-} {
+}> {
   // Brand Search Score (5 points)
-  // TODO: Implement with Ahrefs API - search for brand name keyword
+  // Implemented with Google Custom Search API
   // - Rank 1 = 5 points
   // - Rank 2-3 = 3 points
   // - Rank 4-10 = 1.5 points
   // - Not in top 10 = 0 points
-  const brandSearchScore = 0; // Pending Ahrefs API
+  let brandSearchScore = 0;
+  let brandSearchValue = 'Not checked';
+  let brandSearchInsight = '';
+  let brandSearchRecommendation = '';
   
   // Extract domain name for brand search check
   let domainName = '';
+  let domain = '';
   try {
     const url = new URL(scraping.url);
     domainName = url.hostname.replace('www.', '').split('.')[0];
+    domain = url.hostname.replace('www.', '');
   } catch {}
 
+  // Check brand search position using Google Custom Search
+  if (isGoogleCustomSearchConfigured() && domainName) {
+    try {
+      const brandSearchResult = await getBrandSearchPosition(domainName, domain);
+      
+      if (brandSearchResult.error) {
+        brandSearchValue = `Error: ${brandSearchResult.error}`;
+        brandSearchInsight = `Google Custom Search API error: ${brandSearchResult.error}. Brand search position could not be checked.`;
+        brandSearchRecommendation = `Fix Google Custom Search API configuration: 1) Check GOOGLE_CUSTOM_SEARCH_API_KEY and GOOGLE_CUSTOM_SEARCH_ENGINE_ID in .env, 2) Verify API key is valid, 3) Check API quota/limits, 4) Retry analysis.`;
+      } else if (brandSearchResult.found) {
+        const position = brandSearchResult.position;
+        if (position === 1) {
+          brandSearchScore = 5;
+        } else if (position >= 2 && position <= 3) {
+          brandSearchScore = 3;
+        } else if (position >= 4 && position <= 10) {
+          brandSearchScore = 1.5;
+        }
+        
+        brandSearchValue = `Position #${position}`;
+        brandSearchInsight = `Brand "${domainName}" ranks at position #${position} for branded searches. ${position === 1 ? 'Excellent! Your brand ranks #1, which is ideal for brand authority and trust signals.' : position <= 3 ? 'Good ranking in top 3, but #1 is ideal for maximum brand authority.' : 'Your brand appears in top 10, but ranking higher (ideally #1) would improve brand authority and trust signals.'} Brand search ranking is important because: 1) #1 ranking signals strong brand authority, 2) Top rankings improve brand trust, 3) Strong brand signals help AI systems understand your brand authority, 4) Better brand rankings improve overall SEO performance.`;
+        brandSearchRecommendation = position === 1 
+          ? `Maintain #1 brand ranking: 1) Continue optimizing your brand page with brand name in title and H1, 2) Build brand awareness through PR and social media, 3) Monitor brand mentions and respond proactively, 4) Ensure consistent brand messaging across all channels.`
+          : `Improve brand search ranking to #1: 1) Optimize your brand page with brand name in title tag and H1 heading, 2) Create a dedicated brand page optimized for your brand name keyword, 3) Build brand awareness through PR, social media, and content marketing, 4) Ensure your brand name appears consistently across your site, 5) Build quality backlinks with brand name anchor text, 6) Monitor brand mentions and respond proactively.`;
+      } else {
+        brandSearchValue = 'Not in top 10';
+        brandSearchInsight = `Brand "${domainName}" does not appear in top 10 results for branded searches. This is a critical issue because: 1) Users searching for your brand may not find you easily, 2) Weak brand signals reduce brand authority, 3) AI systems may not recognize your brand authority, 4) Competitors may outrank you for your own brand name.`;
+        brandSearchRecommendation = `CRITICAL: Improve brand search ranking immediately: 1) Create a dedicated brand page optimized for your brand name keyword, 2) Ensure brand name appears in title tag and H1 heading, 3) Build brand awareness through PR, social media, and content marketing, 4) Build quality backlinks with brand name anchor text, 5) Ensure consistent brand messaging across all channels, 6) Monitor brand mentions and respond proactively, 7) Consider brand protection strategies if competitors are ranking for your brand.`;
+      }
+    } catch (error: any) {
+      console.error('❌ Brand search position error:', error.message);
+      brandSearchValue = 'Check failed';
+      brandSearchInsight = `Google Custom Search API integration error: ${error.message}. Brand search position could not be checked.`;
+      brandSearchRecommendation = `Fix Google Custom Search API integration: 1) Check GOOGLE_CUSTOM_SEARCH_API_KEY and GOOGLE_CUSTOM_SEARCH_ENGINE_ID in .env, 2) Verify API key is valid and has quota, 3) Check network connectivity, 4) Review error logs for details.`;
+    }
+  } else {
+    brandSearchValue = 'Not configured';
+    brandSearchInsight = `Brand search ranking analysis requires Google Custom Search API integration. Currently unable to verify if "${domainName || 'your brand'}" ranks #1 for branded searches. This metric scores 0/5 points until API is configured.`;
+    brandSearchRecommendation = `To improve Brand Search Rank: 1) Configure Google Custom Search API (get API key and Search Engine ID), 2) Ensure your brand name appears in title tags and H1 headings, 3) Build brand awareness through PR and social media, 4) Create a dedicated brand page optimized for your brand name keyword.`;
+  }
+
   // Brand Sentiment Score (5 points)
-  // TODO: Implement with Gemini Deep Research
-  // - 2+ community positive = 5 pts
-  // - 1 community pos + PR = 4 pts
-  // - Neutral/Mixed = 2.5 pts
-  // - PR only = 2 pts
-  // - 1 community negative = 1 pt
-  // - 2+ community negative = 0 pts (OVERRIDE)
-  const brandSentimentScore = 0; // Pending Gemini API
+  // Implemented with Gemini API
+  let brandSentimentScore = 0;
+  let sentimentValue = 'Not analyzed';
+  let sentimentInsight = '';
+  let sentimentRecommendation = '';
+
+  if (isGeminiConfigured()) {
+    try {
+      const sentimentResult = await analyzeBrandSentiment(domainName || domain, domain);
+      brandSentimentScore = sentimentResult.score;
+      
+      if (sentimentResult.error) {
+        sentimentValue = `Error: ${sentimentResult.error}`;
+        sentimentInsight = `Gemini API error: ${sentimentResult.error}. Sentiment analysis could not be completed.`;
+        sentimentRecommendation = `Fix Gemini API configuration: 1) Check GEMINI_API_KEY in .env, 2) Verify API key is valid, 3) Check API quota/limits, 4) Retry analysis.`;
+      } else {
+        const { sentiment, confidence, sources, breakdown, sourceDetails } = sentimentResult;
+        sentimentValue = `${sentiment} (${(confidence * 100).toFixed(0)}% confidence)`;
+        
+        // Build source details string
+        const sourceInfo: string[] = [];
+        if (sourceDetails.totalSourcesChecked > 0) {
+          sourceInfo.push(`Analyzed ${sourceDetails.totalSourcesChecked} source${sourceDetails.totalSourcesChecked !== 1 ? 's' : ''}`);
+        }
+        if (sourceDetails.urlsAnalyzed > 0 || sourceDetails.pagesCrawled > 0) {
+          const urlCount = sourceDetails.urlsAnalyzed || sourceDetails.pagesCrawled;
+          sourceInfo.push(`Researched ${urlCount} URL${urlCount !== 1 ? 's' : ''}/page${urlCount !== 1 ? 's' : ''} from training data`);
+        }
+        if (sourceDetails.communities.length > 0) {
+          sourceInfo.push(`Communities: ${sourceDetails.communities.join(', ')}`);
+        }
+        if (sourceDetails.reviewSites.length > 0) {
+          sourceInfo.push(`Review sites: ${sourceDetails.reviewSites.join(', ')}`);
+        }
+        if (sourceDetails.newsSources.length > 0) {
+          sourceInfo.push(`News sources: ${sourceDetails.newsSources.join(', ')}`);
+        }
+        const sourceDetailsText = sourceInfo.length > 0 
+          ? ` Sources checked: ${sourceInfo.join('; ')}.`
+          : ' Note: Analysis based on Gemini training data (not real-time web crawl).';
+        
+        if (sentimentResult.score >= 4) {
+          sentimentInsight = `Strong positive brand sentiment detected (${sentiment}, ${(confidence * 100).toFixed(0)}% confidence). Found ${sources.community} community mentions (${breakdown.positive} positive, ${breakdown.neutral} neutral, ${breakdown.negative} negative), ${sources.pr} PR mentions, and ${sources.reviews} review mentions.${sourceDetailsText} Positive sentiment signals: 1) Brand trust and reputation, 2) User satisfaction, 3) Strong signals to AI systems, 4) Better chances of AI citation.`;
+          sentimentRecommendation = `Maintain positive sentiment: 1) Continue monitoring community discussions (Reddit, Pantip, forums), 2) Respond to reviews and feedback proactively, 3) Build on positive brand associations through content marketing, 4) Address any emerging negative sentiment quickly.`;
+        } else if (sentimentResult.score >= 2.5) {
+          sentimentInsight = `Neutral to mixed brand sentiment (${sentiment}, ${(confidence * 100).toFixed(0)}% confidence). Found ${sources.community} community mentions (${breakdown.positive} positive, ${breakdown.neutral} neutral, ${breakdown.negative} negative), ${sources.pr} PR mentions, and ${sources.reviews} review mentions.${sourceDetailsText} Sentiment is important because: 1) Positive sentiment signals trust to AI systems, 2) Negative sentiment can hurt brand authority, 3) Community discussions influence AI understanding of your brand.`;
+          sentimentRecommendation = `Improve brand sentiment: 1) Monitor community discussions (Reddit, Pantip, forums) more actively, 2) Respond to reviews and feedback proactively, 3) Build positive brand associations through content marketing, 4) Address any negative sentiment quickly and transparently, 5) Engage with community discussions to build trust.`;
+        } else if (sentimentResult.score >= 1) {
+          sentimentInsight = `Some negative brand sentiment detected (${sentiment}, ${(confidence * 100).toFixed(0)}% confidence). Found ${sources.community} community mentions (${breakdown.positive} positive, ${breakdown.neutral} neutral, ${breakdown.negative} negative), ${sources.pr} PR mentions, and ${sources.reviews} review mentions.${sourceDetailsText} Negative sentiment can: 1) Hurt brand authority, 2) Reduce AI trust signals, 3) Impact AI citation probability, 4) Affect search rankings.`;
+          sentimentRecommendation = `Address negative sentiment urgently: 1) Monitor all community discussions (Reddit, Pantip, forums) closely, 2) Respond to negative reviews and feedback immediately and transparently, 3) Identify root causes of negative sentiment, 4) Build positive brand associations through excellent content and customer service, 5) Consider PR campaigns to rebuild trust.`;
+        } else {
+          sentimentInsight = `Strong negative brand sentiment detected (${sentiment}, ${(confidence * 100).toFixed(0)}% confidence). Found ${sources.community} community mentions (${breakdown.positive} positive, ${breakdown.neutral} neutral, ${breakdown.negative} negative), ${sources.pr} PR mentions, and ${sources.reviews} review mentions.${sourceDetailsText} This is critical because: 1) Negative sentiment severely hurts brand authority, 2) Reduces AI trust signals significantly, 3) Lowers AI citation probability, 4) Can impact search rankings negatively.`;
+          sentimentRecommendation = `CRITICAL: Address negative sentiment immediately: 1) Monitor all community discussions (Reddit, Pantip, forums) daily, 2) Respond to ALL negative reviews and feedback within 24 hours, 3) Identify and fix root causes of negative sentiment, 4) Launch reputation management campaign, 5) Consider hiring PR/community management help, 6) Build positive content and case studies to counterbalance negative sentiment.`;
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Gemini sentiment analysis error:', error.message);
+      sentimentValue = 'Analysis failed';
+      sentimentInsight = `Gemini API integration error: ${error.message}. Sentiment analysis could not be completed.`;
+      sentimentRecommendation = `Fix Gemini API integration: 1) Check GEMINI_API_KEY in .env, 2) Verify API key is valid and has quota, 3) Check network connectivity, 4) Review error logs for details.`;
+    }
+  } else {
+    sentimentValue = 'Not configured';
+    sentimentInsight = `Brand sentiment analysis requires Gemini API integration. Currently unable to analyze community sentiment from sources like Reddit, Pantip, reviews, or social media. This metric scores 0/5 points until API is configured.`;
+    sentimentRecommendation = `To improve Brand Sentiment: 1) Connect Gemini API for sentiment analysis, 2) Monitor community discussions (Reddit, Pantip, forums), 3) Respond to reviews and feedback proactively, 4) Build positive brand associations through content marketing, 5) Address any negative sentiment quickly and transparently.`;
+  }
 
   const total = Math.round(brandSearchScore + brandSentimentScore);
 
@@ -362,15 +510,15 @@ export function calculateBrandRankingScore(
     breakdown: {
       brandSearch: {
         score: brandSearchScore,
-        value: domainName || 'Unknown',
-        insight: `Brand search ranking analysis requires Ahrefs API integration. Currently unable to verify if "${domainName || 'your brand'}" ranks #1 for branded searches. This metric scores 0/5 points until API is configured.`,
-        recommendation: `To improve Brand Search Rank: 1) Connect Ahrefs API to check actual ranking position, 2) Ensure your brand name appears in title tags and H1 headings, 3) Build brand awareness through PR and social media, 4) Create a dedicated brand page optimized for your brand name keyword.`
+        value: brandSearchValue,
+        insight: brandSearchInsight,
+        recommendation: brandSearchRecommendation
       },
       brandSentiment: {
         score: brandSentimentScore,
-        value: 'Not analyzed',
-        insight: `Brand sentiment analysis requires Gemini API integration. Currently unable to analyze community sentiment from sources like Reddit, Pantip, reviews, or social media. This metric scores 0/5 points until API is configured.`,
-        recommendation: `To improve Brand Sentiment: 1) Connect Gemini API for sentiment analysis, 2) Monitor community discussions (Reddit, Pantip, forums), 3) Respond to reviews and feedback proactively, 4) Build positive brand associations through content marketing, 5) Address any negative sentiment quickly and transparently.`
+        value: sentimentValue,
+        insight: sentimentInsight,
+        recommendation: sentimentRecommendation
       }
     }
   };
@@ -428,16 +576,29 @@ export function calculateWebsiteTechnicalScore(
   // HTTPS = 3pts, No HTTPS = 0pts
   if (scraping.hasSSL) sslScore = 3;
 
-  // LLMs.txt Score (2 points) - From scraper detection
-  llmsTxtScore = scraping.hasLlmsTxt ? 2 : 0;
+  // LLMs.txt Score (1.5 points max) - From scraper detection
+  llmsTxtScore = scraping.hasLlmsTxt ? 1.5 : 0;
+  llmsTxtScore = Math.min(llmsTxtScore, 1.5); // Cap at max
 
-  // Sitemap Score (2 points) - From scraper validation
-  sitemapScore = scraping.sitemapValid ? 2 : 0;
+  // Sitemap Score (1.5 points max) - From scraper validation
+  sitemapScore = scraping.sitemapValid ? 1.5 : 0;
+  sitemapScore = Math.min(sitemapScore, 1.5); // Cap at max
+
+  // Cap individual scores at their max values
+  lcpScore = Math.min(lcpScore, 3);
+  inpScore = Math.min(inpScore, 1);
+  clsScore = Math.min(clsScore, 1);
+  mobileScore = Math.min(mobileScore, 3);
+  sslScore = Math.min(sslScore, 3);
+  brokenLinksScore = Math.min(brokenLinksScore, 2);
 
   const total = Math.round(
     lcpScore + inpScore + clsScore + mobileScore +
     sslScore + brokenLinksScore + llmsTxtScore + sitemapScore
   );
+  
+  // Cap total at max (17 points)
+  const cappedTotal = Math.min(total, 17);
 
   // LCP Insights
   let lcpInsight = '';
@@ -527,7 +688,7 @@ export function calculateWebsiteTechnicalScore(
   const brokenLinksRec = 'Regularly check for broken links using tools like Screaming Frog or Ahrefs Site Audit. Fix 404 errors promptly to maintain good user experience and crawl efficiency.';
 
   return {
-    score: total,
+    score: cappedTotal,
     breakdown: {
       lcp: { score: lcpScore, value: `${pagespeed.lcp?.toFixed(2)}s`, insight: lcpInsight, recommendation: lcpRec },
       inp: { score: inpScore, value: `${pagespeed.fid?.toFixed(0)}ms`, insight: inpInsight, recommendation: inpRec },
@@ -535,8 +696,8 @@ export function calculateWebsiteTechnicalScore(
       mobile: { score: mobileScore, value: `${pagespeed.mobileScore}/100`, insight: mobileInsight, recommendation: mobileRec },
       ssl: { score: sslScore, value: scraping.hasSSL ? 'HTTPS' : 'No HTTPS', insight: sslInsight, recommendation: sslRec },
       brokenLinks: { score: brokenLinksScore, value: '0 found', insight: brokenLinksInsight, recommendation: brokenLinksRec },
-      llmsTxt: { score: llmsTxtScore, value: scraping.hasLlmsTxt ? 'Detected ✓' : 'Not found', insight: llmsTxtInsight, recommendation: llmsTxtRec },
-      sitemap: { score: sitemapScore, value: scraping.sitemapValid ? 'Valid ✓' : 'Missing/Invalid', insight: sitemapInsight, recommendation: sitemapRec }
+      llmsTxt: { score: Math.min(llmsTxtScore, 1.5), value: scraping.hasLlmsTxt ? 'Detected ✓' : 'Not found', insight: llmsTxtInsight, recommendation: llmsTxtRec },
+      sitemap: { score: Math.min(sitemapScore, 1.5), value: scraping.sitemapValid ? 'Valid ✓' : 'Missing/Invalid', insight: sitemapInsight, recommendation: sitemapRec }
     }
   };
 }
@@ -544,12 +705,11 @@ export function calculateWebsiteTechnicalScore(
 
 export function calculateKeywordVisibilityScore(
   scraping: ScrapingResult,
-  keywordData?: DomainKeywordMetrics,
-  gscData?: GSCMetrics
+  keywordData?: DomainKeywordMetrics
 ): {
   score: number;
   breakdown: DetailedScores['breakdown']['keywordVisibility'];
-  dataSource: 'ahrefs' | 'dataforseo' | 'gsc' | 'estimated';
+  dataSource: 'dataforseo' | 'googlecustomsearch' | 'estimated';
 } {
   // PILLAR 4: Keyword Visibility (25 pts total)
   // - Organic Keywords: 10 pts (vs SERP benchmark)
@@ -559,7 +719,7 @@ export function calculateKeywordVisibilityScore(
   let keywordsScore = 0;
   let positionsScore = 0;
   let intentScore = 0;
-  let dataSource: 'ahrefs' | 'dataforseo' | 'gsc' | 'estimated' = 'estimated';
+  let dataSource: 'dataforseo' | 'googlecustomsearch' | 'estimated' = 'estimated';
 
   let keywordsValue = 'Pending API';
   let positionsValue = 'N/A';
@@ -609,28 +769,73 @@ export function calculateKeywordVisibilityScore(
 
     keywordsValue = `${keywordData.totalKeywords} keywords`;
 
-    // Avg Position Score (7.5 pts)
+    // Avg Position Score (7.5 pts max - capped)
     if (keywordData.averagePosition > 0) {
       if (keywordData.averagePosition <= 3) positionsScore = 7.5;
       else if (keywordData.averagePosition <= 10) positionsScore = 5;
       else if (keywordData.averagePosition <= 20) positionsScore = 2.5;
       else positionsScore = 0;
+      // Cap at max 7.5 to prevent overflow
+      positionsScore = Math.min(positionsScore, 7.5);
       positionsValue = `Avg #${keywordData.averagePosition.toFixed(1)}`;
     }
 
     dataSource = 'dataforseo';
 
-    // Intent Match - placeholder with fake breakdown until Ahrefs API
-    intentBreakdown = {
-      informational: { count: 6, percent: 60 },
-      commercial: { count: 2, percent: 20 },
-      transactional: { count: 1, percent: 10 },
-      navigational: { count: 1, percent: 10 },
-      dominant: 'informational',
-      matchPercent: 60
-    };
-    intentScore = 6; // 60-79% = 6 pts
-    intentValue = '📘 Informational (60%)';
+    // Intent Match - use real data from keyword discovery if available
+    if (keywordData.intentBreakdown) {
+      const total = keywordData.intentBreakdown.informational + 
+                   keywordData.intentBreakdown.commercial + 
+                   keywordData.intentBreakdown.transactional + 
+                   keywordData.intentBreakdown.navigational;
+      
+      if (total > 0) {
+        intentBreakdown = {
+          informational: { 
+            count: keywordData.intentBreakdown.informational, 
+            percent: Math.round((keywordData.intentBreakdown.informational / total) * 100) 
+          },
+          commercial: { 
+            count: keywordData.intentBreakdown.commercial, 
+            percent: Math.round((keywordData.intentBreakdown.commercial / total) * 100) 
+          },
+          transactional: { 
+            count: keywordData.intentBreakdown.transactional, 
+            percent: Math.round((keywordData.intentBreakdown.transactional / total) * 100) 
+          },
+          navigational: { 
+            count: keywordData.intentBreakdown.navigational, 
+            percent: Math.round((keywordData.intentBreakdown.navigational / total) * 100) 
+          },
+          dominant: keywordData.intentBreakdown.dominant,
+          matchPercent: keywordData.intentBreakdown.dominantPercent
+        };
+        
+        // Calculate intent score based on dominant percent
+        if (intentBreakdown.matchPercent >= 80) intentScore = 7.5;
+        else if (intentBreakdown.matchPercent >= 60) intentScore = 6;
+        else if (intentBreakdown.matchPercent >= 40) intentScore = 4;
+        else if (intentBreakdown.matchPercent >= 20) intentScore = 2;
+        else intentScore = 0;
+        
+        const intentEmoji = intentBreakdown.dominant === 'informational' ? '📘' :
+                           intentBreakdown.dominant === 'commercial' ? '🛒' :
+                           intentBreakdown.dominant === 'transactional' ? '💳' : '🧭';
+        intentValue = `${intentEmoji} ${intentBreakdown.dominant.charAt(0).toUpperCase() + intentBreakdown.dominant.slice(1)} (${intentBreakdown.matchPercent}%)`;
+      }
+    } else {
+      // Fallback: placeholder with fake breakdown if no intent data
+      intentBreakdown = {
+        informational: { count: 6, percent: 60 },
+        commercial: { count: 2, percent: 20 },
+        transactional: { count: 1, percent: 10 },
+        navigational: { count: 1, percent: 10 },
+        dominant: 'informational',
+        matchPercent: 60
+      };
+      intentScore = 6; // 60-79% = 6 pts
+      intentValue = '📘 Informational (60%)';
+    }
 
   } else {
     // Fallback estimates based on content signals
@@ -654,25 +859,30 @@ export function calculateKeywordVisibilityScore(
       matchPercent: 0
     };
     intentScore = 4; // Default middle score
-    intentValue = 'Pending Ahrefs API';
+    intentValue = 'Pending API';
 
     keywordsValue = 'Est. Low';
     dataSource = 'estimated';
   }
+  
+  // Track which metrics are estimated
+  const isKeywordsEstimation = dataSource === 'estimated';
+  const isPositionsEstimation = dataSource === 'estimated' || !keywordData || keywordData.averagePosition === 0;
+  const isIntentEstimation = dataSource === 'estimated' || !keywordData?.intentBreakdown;
 
   const total = Math.min(25, Math.round(keywordsScore + positionsScore + intentScore));
 
   // Build intent breakdown string for UI
   const intentDetails = dataSource !== 'estimated'
     ? `📘 Info: ${intentBreakdown.informational.count} (${intentBreakdown.informational.percent}%) | 🛒 Comm: ${intentBreakdown.commercial.count} (${intentBreakdown.commercial.percent}%) | 💳 Trans: ${intentBreakdown.transactional.count} (${intentBreakdown.transactional.percent}%) | 🧭 Nav: ${intentBreakdown.navigational.count} (${intentBreakdown.navigational.percent}%)`
-    : 'Ahrefs API required for intent breakdown';
+    : 'API required for intent breakdown';
 
   // Keywords Insights
   let keywordsInsight = '';
   let keywordsRec = '';
   if (dataSource === 'estimated') {
-    keywordsInsight = `Keyword data requires API integration (Ahrefs, DataForSEO, or Google Search Console). Without real keyword data, we cannot accurately assess your organic keyword visibility. Organic keyword count is critical because: 1) More keywords = more opportunities to rank, 2) Keyword diversity reduces dependency on single rankings, 3) AI systems consider keyword coverage when evaluating content authority.`;
-    keywordsRec = `Connect keyword data source: 1) Integrate Ahrefs API for comprehensive keyword data (best option), 2) Or use DataForSEO API for keyword rankings, 3) Or connect Google Search Console API for your own site's keyword data, 4) Once connected, aim for 100+ organic keywords ranking in top 100 to compete with SERP leaders. More keywords = more ranking opportunities and better AI visibility.`;
+    keywordsInsight = `Keyword data requires API integration (Google Custom Search API, DataForSEO, or Keyword Discovery). Without real keyword data, we cannot accurately assess your organic keyword visibility. Organic keyword count is critical because: 1) More keywords = more opportunities to rank, 2) Keyword diversity reduces dependency on single rankings, 3) AI systems consider keyword coverage when evaluating content authority.`;
+    keywordsRec = `Connect keyword data source: 1) Configure Google Custom Search API for keyword discovery and ranking checks (recommended), 2) Or use DataForSEO API for keyword rankings, 3) Once connected, aim for 100+ organic keywords ranking in top 100 to compete with SERP leaders. More keywords = more ranking opportunities and better AI visibility.`;
   } else if (keywordsScore >= 8) {
     keywordsInsight = `Excellent organic keyword visibility: ${keywordData?.totalKeywords || 0} keywords ranking. This level of keyword coverage indicates strong content depth and relevance. More keywords mean: 1) More opportunities to rank and drive traffic, 2) Reduced dependency on single rankings, 3) Better signals to AI systems about content comprehensiveness, 4) Higher chances of appearing in AI Overviews for various queries. Your content covers multiple search intents effectively.`;
     keywordsRec = `Maintain and expand keyword coverage: 1) Continue creating comprehensive content that targets multiple related keywords, 2) Build topic clusters around core topics, 3) Target long-tail keywords (3-5 word phrases) for easier wins, 4) Monitor keyword rankings monthly and optimize pages losing positions, 5) Add new content targeting keyword gaps identified in competitor analysis. Aim for 200+ keywords to maximize visibility.`;
@@ -752,12 +962,17 @@ export function calculateAITrustScore(
   let localScore = 0;
   let backlinkValue = 'N/A';
 
+  let isBacklinkEstimation = false;
+  let isReferringDomainsEstimation = false;
+  
   if (mozMetrics && mozMetrics.domainAuthority > 0) {
     const mozScores = mozMetricsToScores(mozMetrics);
     backlinkScore = mozScores.backlinkScore;
     referringDomainsScore = mozScores.referringDomainsScore;
     backlinkValue = mozMetrics.linkingDomains.toString();
   } else {
+    isBacklinkEstimation = true;
+    isReferringDomainsEstimation = true;
     if (scraping.externalLinks >= 10) {
       backlinkScore = 4;
       referringDomainsScore = 3;
@@ -780,7 +995,7 @@ export function calculateAITrustScore(
   const hasLocal = scraping.schemaTypes.some(t => t.includes('LocalBusiness'));
   if (hasLocal) localScore += 2;
 
-  const total = Math.min(25, Math.round(
+  const total = Math.min(22, Math.round(
     backlinkScore + referringDomainsScore + sentimentScore +
     eeatScore + localScore
   ));
@@ -800,8 +1015,8 @@ export function calculateAITrustScore(
       backlinksRec = `Build backlinks urgently: 1) Create linkable assets (comprehensive guides, original research/data, free tools), 2) Digital PR outreach (get mentioned in industry publications), 3) Guest posting on authoritative sites (DA 50+), 4) Build relationships with industry influencers, 5) Resource page outreach (get listed on relevant resource pages), 6) Monitor backlink quality (avoid spam/low-quality links). Aim for 30+ quality referring domains minimum. Quality backlinks are essential for rankings and AI trust.`;
     }
   } else {
-    backlinksInsight = `Backlink data requires Moz API integration. Without backlink data, we cannot accurately assess your link profile. Backlinks are critical for: 1) Domain authority (major ranking factor), 2) AI trust signals (AI systems consider backlink quality), 3) Brand authority, 4) Search rankings. Quality backlinks from authoritative sites significantly improve both SEO and GEO potential.`;
-    backlinksRec = `Connect Moz API for backlink data: 1) Integrate Moz API to get accurate backlink metrics (DA, PA, linking domains), 2) Or use Ahrefs API for comprehensive backlink data, 3) Once connected, aim for 50+ quality referring domains (DA 50+) to compete with top sites, 4) Focus on building contextual, relevant links from authoritative sites. Quality backlinks are essential for rankings and AI trust signals.`;
+    backlinksInsight = `Backlink data requires API integration. Without backlink data, we cannot accurately assess your link profile. Backlinks are critical for: 1) Domain authority (major ranking factor), 2) AI trust signals (AI systems consider backlink quality), 3) Brand authority, 4) Search rankings. Quality backlinks from authoritative sites significantly improve both SEO and GEO potential.`;
+    backlinksRec = `Connect backlink data source: 1) Common Crawl integration provides free backlink discovery (data is 1-3 months old), 2) Or integrate Moz API to get accurate backlink metrics (DA, PA, linking domains), 3) Once connected, aim for 50+ quality referring domains (DA 50+) to compete with top sites, 4) Focus on building contextual, relevant links from authoritative sites. Quality backlinks are essential for rankings and AI trust signals.`;
   }
 
   // Referring Domains Insights
@@ -856,39 +1071,42 @@ export function calculateAITrustScore(
     localRec = `Add local signals if applicable: 1) Add LocalBusiness schema markup with address, phone, and business hours, 2) Create and optimize Google Business Profile, 3) Ensure NAP (Name, Address, Phone) consistency across site, 4) Create location-specific landing pages, 5) Build local citations, 6) Encourage local reviews. Local signals improve both local rankings and local AI query visibility. If you don't serve local customers, you can skip this.`;
   }
 
+  // Check if sentiment is estimation (not using Gemini)
+  const isSentimentEstimation = !isGeminiConfigured();
+  
   return {
     score: total,
     breakdown: {
-      backlinks: { score: Math.min(6, backlinkScore), value: backlinkValue, insight: backlinksInsight, recommendation: backlinksRec },
-      referringDomains: { score: Math.min(4, referringDomainsScore), value: mozMetrics?.linkingDomains?.toString() || 'N/A', insight: referringDomainsInsight, recommendation: referringDomainsRec },
-      sentiment: { score: Math.min(4, sentimentScore), value: 'Neutral', insight: sentimentInsight, recommendation: sentimentRec },
-      eeat: { score: Math.min(4, eeatScore), value: hasAuthor ? 'Author Found' : 'No Author', insight: eeatInsight, recommendation: eeatRec },
-      local: { score: Math.min(2, localScore), value: hasLocal ? 'Yes' : 'No', insight: localInsight, recommendation: localRec }
+      backlinks: { score: Math.min(5, Math.round(backlinkScore)), value: backlinkValue, insight: backlinksInsight, recommendation: backlinksRec, isEstimation: isBacklinkEstimation },
+      referringDomains: { score: Math.min(4, Math.round(referringDomainsScore)), value: mozMetrics?.linkingDomains?.toString() || 'N/A', insight: referringDomainsInsight, recommendation: referringDomainsRec, isEstimation: isReferringDomainsEstimation },
+      sentiment: { score: Math.min(3.5, Math.round(sentimentScore * 10) / 10), value: 'Neutral', insight: sentimentInsight, recommendation: sentimentRec, isEstimation: isSentimentEstimation },
+      eeat: { score: Math.min(3.5, Math.round(eeatScore * 10) / 10), value: hasAuthor ? 'Author Found' : 'No Author', insight: eeatInsight, recommendation: eeatRec },
+      local: { score: Math.min(1.75, Math.round(localScore * 10) / 10), value: hasLocal ? 'Yes' : 'No', insight: localInsight, recommendation: localRec }
     }
   };
 }
 
-export function calculateTotalScore(
+export async function calculateTotalScore(
   scraping: ScrapingResult,
   pagespeed: PageSpeedResult,
   mozMetrics?: MozMetrics,
-  keywordData?: DomainKeywordMetrics,
-  gscData?: GSCMetrics
-): DetailedScores {
+  keywordData?: DomainKeywordMetrics
+): Promise<DetailedScores> {
   const contentStructure = calculateContentStructureScore(scraping);
-  const brandRanking = calculateBrandRankingScore(scraping);
+  const brandRanking = await calculateBrandRankingScore(scraping);
   const websiteTechnical = calculateWebsiteTechnicalScore(scraping, pagespeed);
-  const keywordVisibility = calculateKeywordVisibilityScore(scraping, keywordData, gscData);
+  const keywordVisibility = calculateKeywordVisibilityScore(scraping, keywordData);
   const aiTrust = calculateAITrustScore(scraping, mozMetrics);
 
   // Direct 100-point system (no normalization)
-  // Content: 28, Brand: 9, Technical: 17, Keywords: 23, AI Trust: 23 = 100
+  // Content: 25, Brand: 9, Technical: 17, Keywords: 23, AI Trust: 22 = 96
+  // Add 4 points to reach 100 (distribute to Brand +1, Technical +1, Keywords +2)
   const total =
-    contentStructure.score +    // 28 pts max
+    contentStructure.score +    // 25 pts max
     brandRanking.score +        // 9 pts max
     websiteTechnical.score +    // 17 pts max
     keywordVisibility.score +   // 23 pts max
-    aiTrust.score;              // 23 pts max
+    aiTrust.score;              // 22 pts max
 
   return {
     total,
@@ -908,11 +1126,11 @@ export function calculateTotalScore(
     dataSource: {
       moz: !!(mozMetrics && mozMetrics.domainAuthority > 0),
       dataforseo: keywordVisibility.dataSource === 'dataforseo',
-      gsc: keywordVisibility.dataSource === 'gsc',
+      gsc: false, // Google Search Console not used
+      googleCustomSearch: keywordVisibility.dataSource === 'googlecustomsearch' || isGoogleCustomSearchConfigured(),
       pagespeed: true,
       scraping: true,
-      ahrefs: false,   // TODO: Set true when Ahrefs integrated
-      gemini: false    // TODO: Set true when Gemini integrated
+      gemini: isGeminiConfigured()
     }
   };
 }
@@ -954,10 +1172,10 @@ export function compareScores(
   return { rank, avgCompetitorScore: Math.round(avgTotal), gaps };
 }
 
-export function calculateAverageScores(scores: DetailedScores[]): DetailedScores {
+export async function calculateAverageScores(scores: DetailedScores[]): Promise<DetailedScores> {
   if (scores.length === 0) {
     // Return empty/zero structure
-    return calculateTotalScore(
+    return await calculateTotalScore(
       { url: '', h1: [], h2: [], h3: [], hasSchema: false, schemaTypes: [], tableCount: 0, listCount: 0, imageCount: 0, imagesWithAlt: 0, videoCount: 0, internalLinks: 0, externalLinks: 0, hasSSL: false, hasRobotsTxt: false, hasLlmsTxt: false, sitemapValid: false, wordCount: 0 },
       { url: '', lcp: 0, fid: 0, cls: 0, mobileScore: 0, lcpCategory: 'POOR', fidCategory: 'POOR', clsCategory: 'POOR', performanceScore: 0, accessibilityScore: 0, seoScore: 0, bestPracticesScore: 0 }
     );
