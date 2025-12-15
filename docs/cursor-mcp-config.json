@@ -6,6 +6,22 @@
       "env": {
         "AHREFS_API_KEY": "qVfHcVgA_OU1OjClvv5Rn0chO9WinTC4uiR0f639"
       }
+    },
+    "fastpython": {
+      "command": "node",
+      "args": ["/Users/mai/Documents/GitHub/SAO Auditor/docs/fastpython-mcp-server/dist/index.js"],
+      "env": {
+        "PYTHON_COMMAND": "python3",
+        "PYTHON_TIMEOUT_MS": "30000"
+      }
+    },
+    "r": {
+      "command": "node",
+      "args": ["/Users/mai/Documents/GitHub/SAO Auditor/docs/r-mcp-server/dist/index.js"],
+      "env": {
+        "R_COMMAND": "Rscript",
+        "R_TIMEOUT_MS": "30000"
+      }
     }
   }
 }
